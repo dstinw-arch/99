@@ -110,6 +110,14 @@ th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left}
 th{background:var(--mist);color:var(--deep);position:sticky;top:0}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 tr.sum td{font-weight:900;background:#F7FBFA}
+.recon th,.recon td{text-align:right;font-variant-numeric:tabular-nums}
+.recon th:first-child,.recon td:first-child{text-align:left}
+.recon .g{border-left:2px solid var(--line)}
+.recon thead tr:first-child th{text-align:center}
+.recon tr.daysum td{font-weight:900;background:#FFF3EE}
+.recon tr.grand td{font-weight:900;background:var(--mist)}
+.recon td.click{cursor:pointer;color:var(--mid);text-decoration:underline}
+.dayhead{font-size:20px;font-weight:900;color:var(--deep);margin:20px 0 8px}
 .tablebox{overflow:auto;max-height:520px;border-radius:12px;border:1px solid var(--line)}
 .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 .toolbar input,.toolbar select{width:auto}
@@ -183,6 +191,14 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
     <!-- 本社日報 -->
     <div id="tab-day" class="hidden">
       <div class="card">
+        <h2>本社每日對帳（發放期間）</h2>
+        <div class="toolbar">
+          <button class="btn btn-clay" id="sumPrint">列印期間彙總</button>
+          <span class="muted">點日期可看當天明細</span>
+        </div>
+        <div class="tablebox" style="max-height:none"><table id="sumTable" class="recon"></table></div>
+      </div>
+      <div class="card">
         <h2>本社銷帳日報</h2>
         <div class="toolbar">
           <input type="date" id="dayDate">
@@ -208,6 +224,21 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
           <button class="btn btn-soft" id="ovCsvBranch">下載統計 CSV</button>
         </div>
         <div class="tablebox"><table id="ovBranch"></table></div>
+      </div>
+    </div>
+
+    <!-- 管理員：每日對帳 -->
+    <div id="tab-recon" class="hidden">
+      <div class="card">
+        <h2>每日對帳（分社 × 日期）</h2>
+        <div class="toolbar">
+          <select id="rcDay"></select>
+          <select id="rcBranch"></select>
+          <button class="btn btn-soft" id="rcReload">重新整理</button>
+          <button class="btn btn-soft" id="rcCsv">下載對帳 CSV</button>
+          <button class="btn btn-clay" id="rcPrint">列印</button>
+        </div>
+        <div id="rcBody"></div>
       </div>
     </div>
 
@@ -325,7 +356,7 @@ async function enter(){
   $('mainView').classList.remove('hidden');
   $('whoBadge').textContent = ME.is_admin ? '管理員' : `${ME.branch_code} ${ME.branch_name}`;
   const tabs = ME.is_admin
-    ? [['overview','發放總覽'],['claims','銷帳明細'],['reprint','補印／地址'],['lookup','查詢']]
+    ? [['overview','發放總覽'],['recon','每日對帳'],['claims','銷帳明細'],['reprint','補印／地址'],['lookup','查詢']]
     : [['lookup','查詢銷帳'],['day','本社日報'],['reprint','補印／地址']];
   $('tabs').innerHTML = tabs.map(([k,n]) => `<button data-tab="${k}">${n}</button>`).join('');
   $('tabs').querySelectorAll('button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
@@ -339,18 +370,30 @@ function showLogin(){
 $('logoutBtn').onclick = async () => { await sb.auth.signOut(); $('qResult').innerHTML=''; showLogin(); };
 
 function showTab(k){
-  ['lookup','day','overview','claims','reprint'].forEach(t => $('tab-'+t).classList.toggle('hidden', t!==k));
+  ['lookup','day','overview','recon','claims','reprint'].forEach(t => $('tab-'+t).classList.toggle('hidden', t!==k));
   $('tabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab===k));
   if (k==='lookup') setTimeout(()=>$('qNo').focus(), 50);
-  if (k==='day') loadDay();
-  if (k==='overview' || k==='claims') loadAdmin();
+  if (k==='day') { loadDay(); loadSummary(); }
+  if (k==='overview' || k==='claims' || k==='recon') loadAdmin();
   if (k==='reprint') loadReprints();
 }
 
 /* ---------- 查詢 / 銷帳 ---------- */
 $('qBtn').onclick = doLookup;
-$('qNo').onkeydown = e => { if (e.key === 'Enter') doLookup(); };
-let CUR = null;
+$('qNo').onkeydown = e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const v = $('qNo').value.trim();
+  // 同一個號碼已查出且可銷帳 → 第二次 Enter 直接銷帳
+  if (CUR && CUR.found && v && pad6(v) === CUR.member_no && $('claimBtn')) {
+    const cb = $('claimBtn');
+    if (cb.disabled) { toast(CUR.amount==2000 ? '2,000 元請先勾選兩項核對' : '處理中…', true); return; }
+    doClaim(); return;
+  }
+  doLookup();
+};
+$('qNo').oninput = () => { if (CUR && pad6($('qNo').value) !== CUR.member_no) { CUR = null; $('qResult').innerHTML = ''; } };
+let CUR = null, CLAIMING = false;
 async function doLookup(){
   const raw = $('qNo').value.trim();
   if (!raw.replace(/\D/g,'')) { toast('請輸入社籍號碼', true); return; }
@@ -383,7 +426,8 @@ function renderResult(){
       ${r.amount==2000 ? `<div class="alert soft">2,000 元（100 歲）須核對下列兩項，以利後續扣繳申報：</div>
         <label class="chk"><input type="checkbox" id="ck1">已核對身分證字號與社籍資料一致</label>
         <label class="chk"><input type="checkbox" id="ck2">已核對「戶籍地址」與社籍資料一致</label>` : ''}
-      <button class="btn btn-main bigbtn" id="claimBtn">確認銷帳 ${money(r.amount)} 元</button></div>`;
+      <button class="btn btn-main bigbtn" id="claimBtn">確認銷帳 ${money(r.amount)} 元</button>
+      <div class="muted" style="text-align:center;margin-top:6px">${r.amount==2000?'勾完兩項後按 Enter 即可銷帳':'在號碼欄再按一次 Enter 即可銷帳'}</div></div>`;
   }
   if (r.claimed && r.claim.can_undo) {
     h += `<div class="actions"><button class="btn btn-soft" id="undoBtn">撤銷這筆銷帳</button>
@@ -392,15 +436,17 @@ function renderResult(){
 
   // 補印紀錄
   h += `<div class="card" style="background:#FBFDFC;margin-top:18px"><h2 style="font-size:19px">補印通知單紀錄</h2>`;
-  h += r.reprints.length ? r.reprints.map(x => `<div class="rp">
+  h += r.reprints.length ? r.reprints.map(x => `<div class="rp" data-rp="${x.id}">
       <span class="tag ${x.addr_updated?'done':'pend'}">${x.addr_updated?'地址已更新':'待更新地址'}</span>
-      <span>${tw(x.created_at)}・${esc(x.branch_name)}・補印經辦 <b>${esc(x.staff_name)}</b>${x.note?`・${esc(x.note)}`:''}</span>
+      <span>${tw(x.created_at)}・${esc(x.branch_name)}・補印經辦名字 <b>${esc(x.staff_name)}</b>${x.note?`・${esc(x.note)}`:''}${x.edited_at?' <span class="muted">（已修改）</span>':''}</span>
       ${x.addr_updated ? `<span class="muted">（${tw(x.addr_updated_at)} ${esc(x.addr_updated_branch)} ${esc(x.addr_updated_staff)}）</span>`
         : `<button class="btn btn-clay" style="margin-left:auto;font-size:17px;padding:8px 14px" data-addr="${x.id}">已至櫃檯更新地址</button>`}
+      ${x.can_edit ? `<button class="btn btn-soft" style="font-size:16px;padding:6px 12px" data-rpedit="${x.id}">修改</button>
+        <button class="btn btn-soft" style="font-size:16px;padding:6px 12px" data-rpcancel="${x.id}">取消登記</button>` : ''}
     </div>`).join('') : `<div class="muted">無</div>`;
   h += `<details class="rpform"><summary>＋ 登記補印通知單（社員說沒收到）</summary>
       <div class="row2" style="margin-top:12px">
-        <label class="field"><span>補印經辦</span><input type="text" id="rpStaff" value="${esc(staffName())}"></label>
+        <label class="field"><span>補印經辦名字</span><input type="text" id="rpStaff" value="${esc(staffName())}"></label>
         <label class="field"><span>備註（選填）</span><input type="text" id="rpNote" placeholder="例：搬家未收到"></label>
         <button class="btn btn-clay" id="rpBtn">登記補印</button>
       </div>
@@ -410,23 +456,58 @@ function renderResult(){
 
   const cb = $('claimBtn');
   if (cb) {
-    const sync = () => { if (r.amount==2000) cb.disabled = !($('ck1').checked && $('ck2').checked); };
+    const sync = () => { if (r.amount==2000) { cb.disabled = !($('ck1').checked && $('ck2').checked); if (!cb.disabled) cb.focus(); } };
     if (r.amount==2000) { $('ck1').onchange = sync; $('ck2').onchange = sync; sync(); }
     cb.onclick = doClaim;
   }
   if ($('undoBtn')) $('undoBtn').onclick = doUndo;
   if ($('rpBtn')) $('rpBtn').onclick = doReprint;
   box.querySelectorAll('[data-addr]').forEach(b => b.onclick = () => doAddr(+b.dataset.addr));
+  bindReprintEdit(box, r.reprints, doLookup);
+}
+// 補印登記：修改 / 取消（本分社或管理員）
+function bindReprintEdit(root, list, after){
+  root.querySelectorAll('[data-rpedit]').forEach(b => b.onclick = () => {
+    const id = +b.dataset.rpedit, x = list.find(v => v.id === id);
+    const holder = b.closest('[data-rp]') || b.closest('tr');
+    const form = document.createElement('div');
+    form.className = 'row2'; form.style.cssText = 'margin:10px 0;width:100%';
+    form.innerHTML = `<label class="field"><span>補印經辦名字</span><input type="text" class="eStaff" value="${esc(x.staff_name)}"></label>
+      <label class="field"><span>備註</span><input type="text" class="eNote" value="${esc(x.note||'')}"></label>
+      <div style="display:flex;gap:8px"><button class="btn btn-main eSave">儲存</button><button class="btn btn-soft eBack">取消</button></div>`;
+    if (holder.tagName === 'TR') {
+      const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 7; td.appendChild(form); tr.appendChild(td);
+      holder.after(tr); form.querySelector('.eBack').onclick = () => tr.remove();
+    } else {
+      holder.appendChild(form); form.querySelector('.eBack').onclick = () => form.remove();
+    }
+    form.querySelector('.eStaff').focus();
+    form.querySelector('.eSave').onclick = async () => {
+      const s = form.querySelector('.eStaff').value.trim();
+      if (!s) { toast('請填補印經辦名字', true); return; }
+      try { await rpc('elder_reprint_edit', { p_id: id, p_staff: s, p_note: form.querySelector('.eNote').value }); toast('已修改'); after(); }
+      catch(e){ toast(e.message, true); }
+    };
+  });
+  root.querySelectorAll('[data-rpcancel]').forEach(b => b.onclick = async () => {
+    if (!confirm('確定取消這筆補印登記？（登記錯誤時使用）')) return;
+    try { await rpc('elder_reprint_cancel', { p_id: +b.dataset.rpcancel }); toast('已取消登記'); after(); }
+    catch(e){ toast(e.message, true); }
+  });
 }
 async function doClaim(){
-  const r = CUR, btn = $('claimBtn'); btn.disabled = true;
+  if (CLAIMING) return;
+  const r = CUR, btn = $('claimBtn'); btn.disabled = true; CLAIMING = true;
+  try { await doClaimInner(r, btn); } finally { CLAIMING = false; }
+}
+async function doClaimInner(r, btn){
   const proxy = document.querySelector('input[name=who]:checked').value === 'proxy';
   try {
     await rpc('elder_claim', { p_no: r.member_no, p_by_proxy: proxy,
       p_id_checked: r.amount==2000 ? $('ck1').checked : false,
       p_addr_checked: r.amount==2000 ? $('ck2').checked : false });
     toast(`✔ ${r.member_no} 已銷帳 ${money(r.amount)} 元`);
-    $('qNo').value = ''; $('qResult').innerHTML = ''; $('qNo').focus();
+    CUR = null; $('qNo').value = ''; $('qResult').innerHTML = ''; $('qNo').focus();
   } catch(e){ toast(e.message, true); btn.disabled = false; doLookup(); }
 }
 async function doUndo(){
@@ -442,7 +523,7 @@ async function doReprint(){
   catch(e){ toast(e.message, true); }
 }
 async function doAddr(id){
-  const s = prompt('請輸入辦理地址更新的經辦姓名', staffName());
+  const s = prompt('請輸入辦理地址更新的經辦名字', staffName());
   if (!s || !s.trim()) return;
   saveStaff(s.trim());
   try { await rpc('elder_addr_done', { p_id: id, p_staff: s.trim() }); toast('已註記地址更新');
@@ -483,12 +564,116 @@ $('dayPrint').onclick = () => {
   window.print();
 };
 
+/* ---------- 對帳報表（每日 × 分社 × 金額） ---------- */
+const PERIOD = ['2026-10-12','2026-10-13','2026-10-14','2026-10-15','2026-10-16',
+                '2026-10-19','2026-10-20','2026-10-21','2026-10-22','2026-10-23'];
+const shortDay = k => { const [y,m,d]=k.split('-'); const w='日一二三四五六'[new Date(k+'T12:00:00+08:00').getDay()]; return `${+m}/${+d}（${w}）`; };
+const reconHead = first => `<thead><tr><th rowspan="2">${first}</th><th colspan="2" class="g">500 元</th><th colspan="2" class="g">1,000 元</th><th colspan="2" class="g">2,000 元</th><th colspan="2" class="g">合計</th></tr>
+  <tr><th class="g">筆數</th><th>金額</th><th class="g">筆數</th><th>金額</th><th class="g">筆數</th><th>金額</th><th class="g">筆數</th><th>金額</th></tr></thead>`;
+// r = {label, n500, n1000, n2000}
+const reconRow = (r, cls='', tdAttr='') => {
+  const cnt = r.n500+r.n1000+r.n2000, amt = r.n500*500+r.n1000*1000+r.n2000*2000;
+  return `<tr class="${cls}"><td ${tdAttr}>${r.label}</td>
+    <td class="g">${r.n500}</td><td>${money(r.n500*500)}</td>
+    <td class="g">${r.n1000}</td><td>${money(r.n1000*1000)}</td>
+    <td class="g">${r.n2000}</td><td>${money(r.n2000*2000)}</td>
+    <td class="g">${cnt}</td><td>${money(amt)}</td></tr>`;
+};
+const addUp = (rows, label) => rows.reduce((a,r)=>({label, n500:a.n500+r.n500, n1000:a.n1000+r.n1000, n2000:a.n2000+r.n2000}), {label,n500:0,n1000:0,n2000:0});
+const allDays = extra => [...new Set([...PERIOD, ...extra])].sort();
+
+// 分社：期間彙總
+let SUM = [];
+async function loadSummary(){
+  try { SUM = await rpc('elder_branch_summary'); } catch(e){ toast(e.message, true); return; }
+  const days = allDays(SUM.map(x=>x.day));
+  const rows = days.map(d => { const g = a => (SUM.find(x=>x.day===d && x.amount===a)||{cnt:0}).cnt;
+    return { key:d, label: shortDay(d), n500:g(500), n1000:g(1000), n2000:g(2000) }; });
+  $('sumTable').innerHTML = reconHead('日期') + '<tbody>'
+    + rows.map(r => reconRow(r, '', `class="click" data-day="${r.key}"`)).join('')
+    + reconRow(addUp(rows,'期間合計'), 'grand') + '</tbody>';
+  $('sumTable').querySelectorAll('[data-day]').forEach(td => td.onclick = () => { $('dayDate').value = td.dataset.day; loadDay();
+    $('dayTable').scrollIntoView({behavior:'smooth', block:'center'}); });
+  return rows;
+}
+$('sumPrint').onclick = async () => {
+  const rows = await loadSummary();
+  $('printArea').innerHTML = `<h1>淡水信用合作社　115 年度社員重陽敬老金・每日對帳彙總</h1>
+    <div class="meta">單位：${esc(ME.branch_code)} ${esc(ME.branch_name)}　　列印：${tw(Date.now())}</div>
+    <table class="recon">${reconHead('日期')}<tbody>${rows.map(r=>reconRow(r)).join('')}${reconRow(addUp(rows,'期間合計'),'grand')}</tbody></table>
+    <div class="sig"><span>經辦：</span><span>主管：</span></div>`;
+  window.print();
+};
+
+// 管理員：每日對帳
+function reconData(){
+  const claims = ADMIN_DATA.claims;
+  const days = allDays(claims.map(c => twDateKey(c.claimed_at)));
+  const map = {}; // day|branch|amount -> n
+  claims.forEach(c => { const k = `${twDateKey(c.claimed_at)}|${c.branch_code}|${c.amount}`; map[k]=(map[k]||0)+1; });
+  const get = (d,b,a) => map[`${d}|${b}|${a}`]||0;
+  return { days, get };
+}
+function initReconFilters(days){
+  const sd = $('rcDay'), sb_ = $('rcBranch'), cd = sd.value, cb = sb_.value;
+  sd.innerHTML = `<option value="">全部日期</option><option value="__byday">只看每日合計</option>` + days.map(d=>`<option value="${d}">${rocDate(d)}</option>`).join('');
+  sb_.innerHTML = `<option value="">全部分社</option>` + BRANCHES.map(([c,n])=>`<option value="${c}">${c} ${n}</option>`).join('');
+  if ([...sd.options].some(o=>o.value===cd)) sd.value = cd;
+  sb_.value = cb;
+}
+function renderRecon(){
+  if (!ADMIN_DATA) return;
+  const { days, get } = reconData();
+  if (!$('rcDay').options.length || $('rcDay').options.length !== days.length+2) initReconFilters(days);
+  $('rcBody').innerHTML = reconHtml();
+}
+function reconHtml(){
+  const { days, get } = reconData();
+  const fd = $('rcDay').value, fb = $('rcBranch').value;
+  const brs = BRANCHES.filter(([c]) => !fb || c===fb);
+  const rowFor = (d,[c,n]) => ({ label:`${c} ${n}`, n500:get(d,c,500), n1000:get(d,c,1000), n2000:get(d,c,2000) });
+  let html = '';
+  if (fd === '__byday') {
+    const rows = days.map(d => addUp(brs.map(b=>rowFor(d,b)), shortDay(d)));
+    html = `<div class="tablebox" style="max-height:none"><table class="recon">${reconHead('日期')}<tbody>${rows.map(r=>reconRow(r)).join('')}${reconRow(addUp(rows,'期間合計'),'grand')}</tbody></table></div>`;
+  } else {
+    const ds = fd ? [fd] : days;
+    const dayTotals = [];
+    ds.forEach(d => {
+      const rows = brs.map(b => rowFor(d,b));
+      const t = addUp(rows, `${shortDay(d)} 合計`); dayTotals.push(t);
+      html += `<div class="dayhead">${rocDate(d)}</div><div class="tablebox" style="max-height:none"><table class="recon">${reconHead('分社')}<tbody>${rows.map(r=>reconRow(r)).join('')}${reconRow(t,'daysum')}</tbody></table></div>`;
+    });
+    if (!fd) {
+      const per = brs.map(b => addUp(days.map(d=>rowFor(d,b)), `${b[0]} ${b[1]}`));
+      html += `<div class="dayhead">期間累計（各分社）</div><div class="tablebox" style="max-height:none"><table class="recon">${reconHead('分社')}<tbody>${per.map(r=>reconRow(r)).join('')}${reconRow(addUp(per,'期間合計'),'grand')}</tbody></table></div>`;
+    }
+  }
+  return html;
+}
+['rcDay','rcBranch'].forEach(id => $(id).onchange = () => { $('rcBody').innerHTML = reconHtml(); });
+$('rcReload').onclick = loadAdmin;
+$('rcCsv').onclick = () => {
+  const { days, get } = reconData();
+  const rows = [['日期','分社代號','分社','500元筆數','500元金額','1000元筆數','1000元金額','2000元筆數','2000元金額','合計筆數','合計金額']];
+  days.forEach(d => BRANCHES.forEach(([c,n]) => {
+    const a=get(d,c,500), b=get(d,c,1000), e=get(d,c,2000);
+    rows.push([rocDate(d), c, n, a, a*500, b, b*1000, e, e*2000, a+b+e, a*500+b*1000+e*2000]);
+  }));
+  csvDownload(`敬老金每日對帳_${todayKey()}.csv`, rows);
+};
+$('rcPrint').onclick = () => {
+  $('printArea').innerHTML = `<h1>淡水信用合作社　115 年度社員重陽敬老金・每日對帳</h1>
+    <div class="meta">列印：${tw(Date.now())}</div>` + reconHtml();
+  window.print();
+};
+
 /* ---------- 管理員 ---------- */
 async function loadAdmin(){
   if (!ME || !ME.is_admin) return;
   try { ADMIN_DATA = await rpc('elder_admin_all'); } catch(e){ toast(e.message, true); return; }
   $('ovTime').textContent = `更新於 ${tw(Date.now())}・每分鐘自動更新`;
-  renderOverview(); renderClaims();
+  renderOverview(); renderClaims(); renderRecon();
 }
 function renderOverview(){
   const T = ADMIN_DATA.totals;
@@ -584,19 +769,22 @@ function renderReprints(){
     $('rpTable').innerHTML = `<tbody><tr><td class="muted" style="font-size:18px;line-height:1.8">
       社員來補印通知單時：到「查詢銷帳」輸入社籍號碼 → 下方「登記補印通知單」。<br>
       社員到櫃檯改好地址後：同樣查詢該號碼 → 按「已至櫃檯更新地址」。<br>
-      全社的待更新清單由管理員統一追蹤。</td></tr></tbody>`;
+      登記錯了：在查詢結果的補印紀錄按「修改」或「取消登記」（限本分社登記的）。<br>全社的待更新清單由管理員統一追蹤。</td></tr></tbody>`;
     $('rpShow').classList.add('hidden'); $('rpCsv').classList.add('hidden');
     return;
   }
   const list = $('rpShow').value==='pend' ? RP.filter(x=>!x.addr_updated) : RP;
-  $('rpTable').innerHTML = `<thead><tr><th>補印時間</th><th>社籍號碼</th><th>補印分社</th><th>補印經辦</th><th>備註</th><th>地址</th></tr></thead><tbody>`
+  $('rpTable').innerHTML = `<thead><tr><th>補印時間</th><th>社籍號碼</th><th>補印分社</th><th>補印經辦名字</th><th>備註</th><th>地址</th><th></th></tr></thead><tbody>`
     + (list.length ? list.map(x => `<tr><td>${tw(x.created_at)}</td><td>${esc(x.member_no)}</td><td>${esc(x.branch_name)}</td><td>${esc(x.staff_name)}</td><td>${esc(x.note||'')}</td>
       <td>${x.addr_updated ? `<span class="tag done">已更新</span> ${tw(x.addr_updated_at)} ${esc(x.addr_updated_branch)} ${esc(x.addr_updated_staff)}`
-        : `<button class="btn btn-clay" style="font-size:15px;padding:4px 10px" data-addr="${x.id}">已更新地址</button>`}</td></tr>`).join('')
-       : `<tr><td colspan="6" class="muted">沒有資料</td></tr>`) + `</tbody>`;
+        : `<button class="btn btn-clay" style="font-size:15px;padding:4px 10px" data-addr="${x.id}">已更新地址</button>`}</td>
+      <td style="white-space:nowrap"><button class="btn btn-soft" style="font-size:15px;padding:4px 10px" data-rpedit="${x.id}">修改</button>
+        <button class="btn btn-soft" style="font-size:15px;padding:4px 10px" data-rpcancel="${x.id}">取消</button></td></tr>`).join('')
+       : `<tr><td colspan="7" class="muted">沒有資料</td></tr>`) + `</tbody>`;
   $('rpTable').querySelectorAll('[data-addr]').forEach(b => b.onclick = () => doAddr(+b.dataset.addr));
+  bindReprintEdit($('rpTable'), RP, loadReprints);
 }
-$('rpCsv').onclick = () => csvDownload(`敬老金補印名單_${todayKey()}.csv`, [['補印時間','社籍號碼','補印分社','補印經辦','備註','地址已更新','更新時間','更新分社','更新經辦'],
+$('rpCsv').onclick = () => csvDownload(`敬老金補印名單_${todayKey()}.csv`, [['補印時間','社籍號碼','補印分社','補印經辦名字','備註','地址已更新','更新時間','更新分社','更新經辦'],
   ...RP.map(x=>[tw(x.created_at),x.member_no,x.branch_name,x.staff_name,x.note||'',x.addr_updated?'是':'否',x.addr_updated_at?tw(x.addr_updated_at):'',x.addr_updated_branch||'',x.addr_updated_staff||''])]);
 
 /* ---------- 啟動 ---------- */
