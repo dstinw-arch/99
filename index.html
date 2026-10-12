@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>重陽敬老金銷帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --deep:#365955; --mid:#508E7E; --mist:#E2F2EE; --clay:#DB8F65; --peach:#FFC7B3;
+  --bg:#F4FAF8; --card:#FFFFFF; --ink:#22403C; --ink2:#4E6E69; --line:#CFE5DF;
+  --ok:#508E7E; --warn:#DB8F65; --bad:#C2553B;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:"Noto Sans TC",system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:18px;line-height:1.5}
+button,input,select,textarea{font:inherit;color:inherit}
+.hidden{display:none!important}
+.wrap{max-width:1100px;margin:0 auto;padding:0 16px}
+
+/* header */
+header{background:var(--deep);color:#fff}
+header .wrap{display:flex;align-items:center;gap:14px;min-height:68px;flex-wrap:wrap;padding-top:8px;padding-bottom:8px}
+header h1{font-size:22px;margin:0;font-weight:700;letter-spacing:.05em}
+header .who{margin-left:auto;display:flex;align-items:center;gap:10px}
+.badge{background:var(--peach);color:var(--deep);border-radius:999px;padding:4px 14px;font-weight:700}
+.btn-ghost{background:transparent;border:1.5px solid rgba(255,255,255,.6);color:#fff;border-radius:10px;padding:6px 14px;cursor:pointer}
+
+nav.tabs{display:flex;gap:6px;margin:18px 0 6px;flex-wrap:wrap}
+nav.tabs button{border:none;background:var(--mist);color:var(--deep);padding:10px 20px;border-radius:12px;font-weight:700;cursor:pointer;font-size:18px}
+nav.tabs button.on{background:var(--mid);color:#fff}
+
+.card{background:var(--card);border-radius:18px;padding:22px;margin:16px 0;box-shadow:0 2px 0 var(--line)}
+.card h2{margin:0 0 14px;font-size:21px;color:var(--deep)}
+.muted{color:var(--ink2)}
+.btn{border:none;border-radius:12px;padding:12px 22px;font-weight:700;cursor:pointer;font-size:19px}
+.btn-main{background:var(--mid);color:#fff}
+.btn-main:hover{background:var(--deep)}
+.btn-clay{background:var(--clay);color:#fff}
+.btn-soft{background:var(--mist);color:var(--deep)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+input[type=text],input[type=password],input[type=date],select,textarea{border:2px solid var(--line);border-radius:12px;padding:10px 14px;background:#fff;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--mid)}
+label.chk{display:flex;align-items:center;gap:10px;font-size:19px;padding:10px 12px;border-radius:12px;background:#FFF3EE;margin:8px 0;cursor:pointer}
+label.chk input{width:24px;height:24px;accent-color:var(--clay)}
+
+/* login */
+.login{max-width:420px;margin:60px auto}
+.login .logo{width:64px;height:64px;border-radius:50%;background:var(--mid);color:#fff;display:grid;place-items:center;font-size:30px;font-weight:900;margin:0 auto 10px}
+.login h1{text-align:center;font-size:26px;margin:0 0 4px;color:var(--deep)}
+.login p.sub{text-align:center;margin:0 0 20px}
+.field{margin:12px 0}
+.field > span{display:block;font-weight:700;margin-bottom:6px;color:var(--deep)}
+.err{color:var(--bad);font-weight:700;min-height:1.5em}
+
+/* lookup */
+.search{display:flex;gap:12px}
+.search input{font-size:34px;letter-spacing:.15em;font-weight:700;text-align:center;padding:12px}
+.search .btn{font-size:22px;white-space:nowrap}
+.result{margin-top:18px}
+.mbox{border-radius:18px;padding:22px;display:flex;flex-wrap:wrap;gap:20px;align-items:center}
+.mbox.free{background:var(--mist)}
+.mbox.done{background:#FDEDE7}
+.mbox.none{background:#FDEDE7}
+.mno{font-size:20px;color:var(--ink2)}
+.mno b{display:block;font-size:40px;color:var(--deep);letter-spacing:.1em}
+.amt{font-size:52px;font-weight:900;color:var(--deep)}
+.amt small{font-size:20px;font-weight:500}
+.amt.a2000{color:var(--clay)}
+.state{margin-left:auto;text-align:right;font-size:22px;font-weight:700}
+.state.ok{color:var(--mid)}
+.state.no{color:var(--bad)}
+.actions{margin-top:16px}
+.radio{display:flex;gap:10px;margin:8px 0 12px}
+.radio label{flex:1;text-align:center;padding:12px;border-radius:12px;border:2px solid var(--line);cursor:pointer;font-weight:700;background:#fff}
+.radio input{display:none}
+.radio input:checked + span{color:#fff}
+.radio label:has(input:checked){background:var(--mid);border-color:var(--mid);color:#fff}
+.bigbtn{width:100%;font-size:26px;padding:18px}
+.alert{background:var(--peach);color:#6B3018;border-radius:14px;padding:14px 18px;font-weight:700;margin:12px 0}
+.alert.soft{background:#FFF3EE;font-weight:500}
+.rp{border-top:1.5px dashed var(--line);padding:12px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.rp:first-child{border-top:none}
+.tag{display:inline-block;border-radius:999px;padding:2px 12px;font-size:15px;font-weight:700}
+.tag.pend{background:var(--peach);color:#7A3418}
+.tag.done{background:var(--mist);color:var(--deep)}
+.row2{display:grid;grid-template-columns:1fr 2fr auto;gap:10px;align-items:end}
+details.rpform{margin-top:14px}
+details.rpform summary{cursor:pointer;font-weight:700;color:var(--clay);font-size:19px}
+
+/* stats */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.kpi{border-radius:18px;padding:18px;color:#fff}
+.kpi .k{font-size:18px;opacity:.95}
+.kpi .v{font-size:40px;font-weight:900;line-height:1.15}
+.kpi .s{font-size:16px;opacity:.95}
+.kpi.k500{background:var(--mid)}
+.kpi.k1000{background:var(--deep)}
+.kpi.k2000{background:var(--clay)}
+.kpi.ktot{background:#fff;color:var(--deep);border:2px solid var(--line)}
+.bar{height:12px;border-radius:99px;background:rgba(255,255,255,.35);margin:8px 0 4px;overflow:hidden}
+.bar i{display:block;height:100%;background:#fff;border-radius:99px}
+.ktot .bar{background:var(--mist)} .ktot .bar i{background:var(--mid)}
+
+table{border-collapse:collapse;width:100%;font-size:17px}
+th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left}
+th{background:var(--mist);color:var(--deep);position:sticky;top:0}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr.sum td{font-weight:900;background:#F7FBFA}
+.tablebox{overflow:auto;max-height:520px;border-radius:12px;border:1px solid var(--line)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.toolbar input,.toolbar select{width:auto}
+
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--deep);color:#fff;padding:14px 26px;border-radius:14px;font-weight:700;font-size:20px;box-shadow:0 6px 20px rgba(0,0,0,.2);z-index:9}
+.toast.bad{background:var(--bad)}
+footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
+
+/* print: 日報 */
+#printArea{display:none}
+@media print{
+  body{background:#fff;font-size:15px}
+  header,nav,.card,footer,.toast,#app > *:not(#printArea){display:none!important}
+  #printArea{display:block!important}
+  #printArea h1{font-size:22px;text-align:center;margin:0 0 4px}
+  #printArea .meta{text-align:center;margin-bottom:12px}
+  #printArea table{font-size:14px}
+  #printArea th{background:#eee}
+  .sig{display:flex;justify-content:space-around;margin-top:40px;font-size:16px}
+}
+@media (max-width:640px){
+  .search{flex-direction:column}
+  .state{margin-left:0;text-align:left}
+  .row2{grid-template-columns:1fr}
+  header h1{font-size:19px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- 登入 -->
+<section id="loginView" class="hidden">
+  <div class="login card">
+    <div class="logo">淡</div>
+    <h1>重陽敬老金銷帳</h1>
+    <p class="sub muted">115 年度・淡水信用合作社</p>
+    <div class="field"><span>單位</span>
+      <select id="lgBranch"></select>
+    </div>
+    <div class="field"><span>密碼</span>
+      <input type="password" id="lgPw" autocomplete="current-password">
+    </div>
+    <div class="err" id="lgErr"></div>
+    <button class="btn btn-main bigbtn" id="lgBtn">登入</button>
+  </div>
+</section>
+
+<!-- 主畫面 -->
+<section id="mainView" class="hidden">
+  <header><div class="wrap">
+    <h1>115 年度社員重陽敬老金・銷帳</h1>
+    <div class="who"><span class="badge" id="whoBadge"></span><button class="btn-ghost" id="logoutBtn">登出</button></div>
+  </div></header>
+
+  <div class="wrap">
+    <nav class="tabs" id="tabs"></nav>
+
+    <!-- 查詢銷帳 -->
+    <div id="tab-lookup">
+      <div class="card">
+        <h2>輸入社籍號碼</h2>
+        <div class="search">
+          <input type="text" id="qNo" inputmode="numeric" maxlength="8" placeholder="例：000614" autocomplete="off">
+          <button class="btn btn-main" id="qBtn">查詢</button>
+        </div>
+        <div class="result" id="qResult"></div>
+      </div>
+    </div>
+
+    <!-- 本社日報 -->
+    <div id="tab-day" class="hidden">
+      <div class="card">
+        <h2>本社銷帳日報</h2>
+        <div class="toolbar">
+          <input type="date" id="dayDate">
+          <button class="btn btn-soft" id="dayLoad">重新整理</button>
+          <button class="btn btn-clay" id="dayPrint">列印日報</button>
+        </div>
+        <div class="kpis" id="dayKpis"></div>
+        <div class="tablebox" style="margin-top:14px"><table id="dayTable"></table></div>
+      </div>
+    </div>
+
+    <!-- 管理員：總覽 -->
+    <div id="tab-overview" class="hidden">
+      <div class="card">
+        <h2>發放總覽 <span class="muted" style="font-size:16px;font-weight:400" id="ovTime"></span></h2>
+        <div class="kpis" id="ovKpis"></div>
+      </div>
+      <div class="card">
+        <h2>各分社銷帳統計</h2>
+        <div class="toolbar">
+          <select id="ovDay"></select>
+          <button class="btn btn-soft" id="ovReload">重新整理</button>
+          <button class="btn btn-soft" id="ovCsvBranch">下載統計 CSV</button>
+        </div>
+        <div class="tablebox"><table id="ovBranch"></table></div>
+      </div>
+    </div>
+
+    <!-- 管理員：明細 -->
+    <div id="tab-claims" class="hidden">
+      <div class="card">
+        <h2>銷帳明細</h2>
+        <div class="toolbar">
+          <input type="text" id="clFilter" placeholder="篩選社籍號碼" style="max-width:200px">
+          <select id="clBranch"></select>
+          <select id="clAmt"><option value="">全部金額</option><option>500</option><option>1000</option><option>2000</option></select>
+          <button class="btn btn-soft" id="clCsv">下載明細 CSV</button>
+          <button class="btn btn-soft" id="clUnclaimed">下載未領名單 CSV</button>
+        </div>
+        <div class="muted" id="clCount"></div>
+        <div class="tablebox"><table id="clTable"></table></div>
+      </div>
+      <div class="card">
+        <h2>撤銷紀錄</h2>
+        <div class="tablebox"><table id="logTable"></table></div>
+      </div>
+    </div>
+
+    <!-- 補印通知單 -->
+    <div id="tab-reprint" class="hidden">
+      <div class="card">
+        <h2>補印通知單・待更新地址</h2>
+        <div class="toolbar">
+          <select id="rpShow"><option value="pend">只看未更新地址</option><option value="all">全部</option></select>
+          <button class="btn btn-soft" id="rpCsv">下載 CSV</button>
+        </div>
+        <div class="tablebox"><table id="rpTable"></table></div>
+      </div>
+    </div>
+  </div>
+  <footer>淡水信用合作社・重陽敬老金銷帳系統</footer>
+</section>
+
+<div id="printArea"></div>
+</div>
+<div id="toast" class="toast hidden"></div>
+
+<script>
+const SUPABASE_URL = 'https://euzcnkxxqwvkzutopwau.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_iW5bLz3gFFVvCP6MLTRIww_YZTOkNGb';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const BRANCHES = [
+  ['0016','營業部'],['0025','水碓'],['0034','竹圍'],['0043','英專'],['0052','義山'],['0061','三芝'],
+  ['0070','八里'],['0089','成州'],['0098','五股'],['0104','萬金'],['0113','新莊'],['0122','泰山'],
+  ['0131','林口'],['0140','板橋'],['0159','蘆洲'],['0168','三重']
+];
+const ADMIN = ['9999','管理員'];
+const emailOf = code => `elder-${code}@example.com`;
+
+let ME = null, ADMIN_DATA = null, refreshTimer = null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = n => Number(n).toLocaleString('zh-TW');
+const pad6 = s => (String(s).replace(/\D/g,'')).padStart(6,'0');
+function tw(ts){ // 民國日期時間
+  const d = new Date(ts);
+  const p = n => String(n).padStart(2,'0');
+  const f = new Intl.DateTimeFormat('zh-TW',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(d);
+  const g = t => f.find(x=>x.type===t).value;
+  return `${g('year')-1911}/${g('month')}/${g('day')} ${g('hour')}:${g('minute')}`;
+}
+function twDateKey(ts){ // YYYY-MM-DD (台北)
+  return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei'}).format(new Date(ts));
+}
+function rocDate(key){ const [y,m,d] = key.split('-'); return `${y-1911} 年 ${+m} 月 ${+d} 日`; }
+function todayKey(){ return twDateKey(Date.now()); }
+function toast(msg, bad){
+  const t = $('toast'); t.textContent = msg; t.className = 'toast' + (bad?' bad':'');
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.add('hidden'), 3200);
+}
+async function rpc(name, args={}){
+  const { data, error } = await sb.rpc(name, args);
+  if (error) throw new Error(error.message);
+  return data;
+}
+function csvDownload(name, rows){
+  const body = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const blob = new Blob(['﻿' + body], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+function staffName(){ try { return localStorage.getItem('elder_staff') || ''; } catch(e){ return ''; } }
+function saveStaff(v){ try { localStorage.setItem('elder_staff', v); } catch(e){} }
+
+/* ---------- 登入 ---------- */
+function initLogin(){
+  $('lgBranch').innerHTML = BRANCHES.map(([c,n]) => `<option value="${c}">${c} ${n}</option>`).join('')
+    + `<option value="${ADMIN[0]}">管理員</option>`;
+  try { const last = localStorage.getItem('elder_branch'); if (last) $('lgBranch').value = last; } catch(e){}
+  $('lgBtn').onclick = doLogin;
+  $('lgPw').onkeydown = e => { if (e.key === 'Enter') doLogin(); };
+}
+async function doLogin(){
+  $('lgErr').textContent = '';
+  const code = $('lgBranch').value, pw = $('lgPw').value;
+  if (!pw) { $('lgErr').textContent = '請輸入密碼'; return; }
+  $('lgBtn').disabled = true;
+  const { error } = await sb.auth.signInWithPassword({ email: emailOf(code), password: pw });
+  $('lgBtn').disabled = false;
+  if (error) { $('lgErr').textContent = '密碼錯誤'; return; }
+  try { localStorage.setItem('elder_branch', code); } catch(e){}
+  $('lgPw').value = '';
+  await enter();
+}
+async function enter(){
+  try { ME = await rpc('elder_whoami'); }
+  catch(e){ await sb.auth.signOut(); showLogin(); return; }
+  $('loginView').classList.add('hidden');
+  $('mainView').classList.remove('hidden');
+  $('whoBadge').textContent = ME.is_admin ? '管理員' : `${ME.branch_code} ${ME.branch_name}`;
+  const tabs = ME.is_admin
+    ? [['overview','發放總覽'],['claims','銷帳明細'],['reprint','補印／地址'],['lookup','查詢']]
+    : [['lookup','查詢銷帳'],['day','本社日報'],['reprint','補印／地址']];
+  $('tabs').innerHTML = tabs.map(([k,n]) => `<button data-tab="${k}">${n}</button>`).join('');
+  $('tabs').querySelectorAll('button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+  showTab(tabs[0][0]);
+  if (ME.is_admin) { clearInterval(refreshTimer); refreshTimer = setInterval(loadAdmin, 60000); }
+}
+function showLogin(){
+  ME = null; clearInterval(refreshTimer);
+  $('mainView').classList.add('hidden'); $('loginView').classList.remove('hidden');
+}
+$('logoutBtn').onclick = async () => { await sb.auth.signOut(); $('qResult').innerHTML=''; showLogin(); };
+
+function showTab(k){
+  ['lookup','day','overview','claims','reprint'].forEach(t => $('tab-'+t).classList.toggle('hidden', t!==k));
+  $('tabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab===k));
+  if (k==='lookup') setTimeout(()=>$('qNo').focus(), 50);
+  if (k==='day') loadDay();
+  if (k==='overview' || k==='claims') loadAdmin();
+  if (k==='reprint') loadReprints();
+}
+
+/* ---------- 查詢 / 銷帳 ---------- */
+$('qBtn').onclick = doLookup;
+$('qNo').onkeydown = e => { if (e.key === 'Enter') doLookup(); };
+let CUR = null;
+async function doLookup(){
+  const raw = $('qNo').value.trim();
+  if (!raw.replace(/\D/g,'')) { toast('請輸入社籍號碼', true); return; }
+  try { CUR = await rpc('elder_lookup', { p_no: raw }); renderResult(); }
+  catch(e){ toast(e.message, true); }
+}
+function renderResult(){
+  const r = CUR, box = $('qResult');
+  if (!r.found) {
+    box.innerHTML = `<div class="mbox none"><div class="mno">社籍號碼<b>${esc(r.member_no)}</b></div>
+      <div class="state no" style="margin-left:auto">查無此社籍號碼<br><span class="muted" style="font-size:17px;font-weight:400">不在本次敬老金名單內</span></div></div>`;
+    return;
+  }
+  const pend = r.reprints.filter(x => !x.addr_updated);
+  let h = '';
+  if (pend.length) h += `<div class="alert">⚠ 此社員曾補印通知單，請提醒至櫃檯更新收件地址（${pend.length} 筆未更新）</div>`;
+  h += `<div class="mbox ${r.claimed?'done':'free'}">
+      <div class="mno">社籍號碼<b>${esc(r.member_no)}</b></div>
+      <div class="amt ${r.amount==2000?'a2000':''}">${money(r.amount)}<small> 元</small></div>
+      <div class="state ${r.claimed?'no':'ok'}">${r.claimed
+        ? `已領取<br><span style="font-size:18px;font-weight:500">${esc(r.claim.branch_name)}・${tw(r.claim.claimed_at)}${r.claim.by_proxy?'・代領':''}</span>`
+        : '尚未領取'}</div></div>`;
+
+  if (!r.claimed && !ME.is_admin) {
+    h += `<div class="actions">
+      <div class="radio">
+        <label><input type="radio" name="who" value="self" checked><span>本人領取</span></label>
+        <label><input type="radio" name="who" value="proxy"><span>代領</span></label>
+      </div>
+      ${r.amount==2000 ? `<div class="alert soft">2,000 元（100 歲）須核對下列兩項，以利後續扣繳申報：</div>
+        <label class="chk"><input type="checkbox" id="ck1">已核對身分證字號與社籍資料一致</label>
+        <label class="chk"><input type="checkbox" id="ck2">已核對「戶籍地址」與社籍資料一致</label>` : ''}
+      <button class="btn btn-main bigbtn" id="claimBtn">確認銷帳 ${money(r.amount)} 元</button></div>`;
+  }
+  if (r.claimed && r.claim.can_undo) {
+    h += `<div class="actions"><button class="btn btn-soft" id="undoBtn">撤銷這筆銷帳</button>
+      <span class="muted" style="margin-left:10px">${ME.is_admin?'管理員可撤銷任何一筆':'僅限本社當天銷帳可撤銷'}</span></div>`;
+  }
+
+  // 補印紀錄
+  h += `<div class="card" style="background:#FBFDFC;margin-top:18px"><h2 style="font-size:19px">補印通知單紀錄</h2>`;
+  h += r.reprints.length ? r.reprints.map(x => `<div class="rp">
+      <span class="tag ${x.addr_updated?'done':'pend'}">${x.addr_updated?'地址已更新':'待更新地址'}</span>
+      <span>${tw(x.created_at)}・${esc(x.branch_name)}・補印經辦 <b>${esc(x.staff_name)}</b>${x.note?`・${esc(x.note)}`:''}</span>
+      ${x.addr_updated ? `<span class="muted">（${tw(x.addr_updated_at)} ${esc(x.addr_updated_branch)} ${esc(x.addr_updated_staff)}）</span>`
+        : `<button class="btn btn-clay" style="margin-left:auto;font-size:17px;padding:8px 14px" data-addr="${x.id}">已至櫃檯更新地址</button>`}
+    </div>`).join('') : `<div class="muted">無</div>`;
+  h += `<details class="rpform"><summary>＋ 登記補印通知單（社員說沒收到）</summary>
+      <div class="row2" style="margin-top:12px">
+        <label class="field"><span>補印經辦</span><input type="text" id="rpStaff" value="${esc(staffName())}"></label>
+        <label class="field"><span>備註（選填）</span><input type="text" id="rpNote" placeholder="例：搬家未收到"></label>
+        <button class="btn btn-clay" id="rpBtn">登記補印</button>
+      </div>
+      <div class="muted" style="margin-top:6px">登記後會註記「待更新地址」，請引導社員至櫃檯辦理社籍地址變更。</div>
+    </details></div>`;
+  box.innerHTML = h;
+
+  const cb = $('claimBtn');
+  if (cb) {
+    const sync = () => { if (r.amount==2000) cb.disabled = !($('ck1').checked && $('ck2').checked); };
+    if (r.amount==2000) { $('ck1').onchange = sync; $('ck2').onchange = sync; sync(); }
+    cb.onclick = doClaim;
+  }
+  if ($('undoBtn')) $('undoBtn').onclick = doUndo;
+  if ($('rpBtn')) $('rpBtn').onclick = doReprint;
+  box.querySelectorAll('[data-addr]').forEach(b => b.onclick = () => doAddr(+b.dataset.addr));
+}
+async function doClaim(){
+  const r = CUR, btn = $('claimBtn'); btn.disabled = true;
+  const proxy = document.querySelector('input[name=who]:checked').value === 'proxy';
+  try {
+    await rpc('elder_claim', { p_no: r.member_no, p_by_proxy: proxy,
+      p_id_checked: r.amount==2000 ? $('ck1').checked : false,
+      p_addr_checked: r.amount==2000 ? $('ck2').checked : false });
+    toast(`✔ ${r.member_no} 已銷帳 ${money(r.amount)} 元`);
+    $('qNo').value = ''; $('qResult').innerHTML = ''; $('qNo').focus();
+  } catch(e){ toast(e.message, true); btn.disabled = false; doLookup(); }
+}
+async function doUndo(){
+  if (!confirm(`確定撤銷 ${CUR.member_no} 的銷帳？`)) return;
+  try { await rpc('elder_undo', { p_no: CUR.member_no }); toast('已撤銷'); await doLookup(); }
+  catch(e){ toast(e.message, true); }
+}
+async function doReprint(){
+  const s = $('rpStaff').value.trim();
+  if (!s) { toast('請填補印經辦姓名', true); return; }
+  saveStaff(s);
+  try { await rpc('elder_reprint', { p_no: CUR.member_no, p_staff: s, p_note: $('rpNote').value }); toast('已登記補印'); await doLookup(); }
+  catch(e){ toast(e.message, true); }
+}
+async function doAddr(id){
+  const s = prompt('請輸入辦理地址更新的經辦姓名', staffName());
+  if (!s || !s.trim()) return;
+  saveStaff(s.trim());
+  try { await rpc('elder_addr_done', { p_id: id, p_staff: s.trim() }); toast('已註記地址更新');
+    if (CUR && !$('tab-lookup').classList.contains('hidden')) await doLookup(); else loadReprints(); }
+  catch(e){ toast(e.message, true); }
+}
+
+/* ---------- 本社日報 ---------- */
+$('dayDate').value = todayKey();
+$('dayLoad').onclick = loadDay;
+$('dayDate').onchange = loadDay;
+let DAY = [];
+async function loadDay(){
+  try { DAY = await rpc('elder_branch_day', { p_date: $('dayDate').value }); } catch(e){ toast(e.message, true); return; }
+  const agg = {500:0,1000:0,2000:0};
+  DAY.forEach(x => agg[x.amount]++);
+  const total = DAY.reduce((s,x)=>s+x.amount,0);
+  $('dayKpis').innerHTML = [500,1000,2000].map(a => `<div class="kpi k${a}"><div class="k">${money(a)} 元</div><div class="v">${agg[a]} 人</div><div class="s">${money(agg[a]*a)} 元</div></div>`).join('')
+    + `<div class="kpi ktot"><div class="k">本日合計</div><div class="v">${DAY.length} 人</div><div class="s">${money(total)} 元</div></div>`;
+  $('dayTable').innerHTML = `<thead><tr><th>#</th><th>社籍號碼</th><th class="n">金額</th><th>時間</th><th>領取</th></tr></thead><tbody>`
+    + (DAY.length ? DAY.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.member_no)}</td><td class="n">${money(x.amount)}</td><td>${tw(x.claimed_at)}</td><td>${x.by_proxy?'代領':'本人'}</td></tr>`).join('')
+       : `<tr><td colspan="5" class="muted">這天沒有銷帳</td></tr>`) + `</tbody>`;
+}
+$('dayPrint').onclick = () => {
+  const key = $('dayDate').value, agg = {500:0,1000:0,2000:0};
+  DAY.forEach(x => agg[x.amount]++);
+  const total = DAY.reduce((s,x)=>s+x.amount,0);
+  $('printArea').innerHTML = `<h1>淡水信用合作社　115 年度社員重陽敬老金銷帳日報</h1>
+    <div class="meta">單位：${esc(ME.branch_code)} ${esc(ME.branch_name)}　　日期：${rocDate(key)}　　列印：${tw(Date.now())}</div>
+    <table><thead><tr><th>金額</th><th class="n">人數</th><th class="n">小計</th></tr></thead><tbody>
+    ${[500,1000,2000].map(a=>`<tr><td>${money(a)} 元</td><td class="n">${agg[a]}</td><td class="n">${money(agg[a]*a)}</td></tr>`).join('')}
+    <tr class="sum"><td>合計</td><td class="n">${DAY.length}</td><td class="n">${money(total)}</td></tr></tbody></table>
+    <h3 style="margin-top:18px">銷帳明細</h3>
+    <table><thead><tr><th>#</th><th>社籍號碼</th><th class="n">金額</th><th>時間</th><th>領取</th></tr></thead><tbody>
+    ${DAY.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.member_no)}</td><td class="n">${money(x.amount)}</td><td>${tw(x.claimed_at)}</td><td>${x.by_proxy?'代領':'本人'}</td></tr>`).join('')}
+    </tbody></table>
+    <div class="sig"><span>經辦：</span><span>主管：</span></div>`;
+  window.print();
+};
+
+/* ---------- 管理員 ---------- */
+async function loadAdmin(){
+  if (!ME || !ME.is_admin) return;
+  try { ADMIN_DATA = await rpc('elder_admin_all'); } catch(e){ toast(e.message, true); return; }
+  $('ovTime').textContent = `更新於 ${tw(Date.now())}・每分鐘自動更新`;
+  renderOverview(); renderClaims();
+}
+function renderOverview(){
+  const T = ADMIN_DATA.totals;
+  let cnt=0, cl=0, amt=0, amtCl=0;
+  const cards = T.map(t => { cnt+=t.cnt; cl+=t.claimed; amt+=t.cnt*t.amount; amtCl+=t.claimed*t.amount;
+    const pct = t.cnt ? Math.round(t.claimed/t.cnt*1000)/10 : 0;
+    return `<div class="kpi k${t.amount}"><div class="k">${money(t.amount)} 元・共 ${money(t.cnt)} 人</div>
+      <div class="v">${money(t.claimed)} <span style="font-size:20px">人已領</span></div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="s">${pct}%・未領 ${money(t.cnt-t.claimed)} 人・已發 ${money(t.claimed*t.amount)} 元</div></div>`; });
+  const pct = cnt ? Math.round(cl/cnt*1000)/10 : 0;
+  $('ovKpis').innerHTML = cards.join('') + `<div class="kpi ktot"><div class="k">全部・共 ${money(cnt)} 人</div>
+    <div class="v">${money(cl)} <span style="font-size:20px">人已領</span></div><div class="bar"><i style="width:${pct}%"></i></div>
+    <div class="s">${pct}%・已發 ${money(amtCl)} / ${money(amt)} 元</div></div>`;
+
+  // 日期選單
+  const days = [...new Set(ADMIN_DATA.claims.map(c => twDateKey(c.claimed_at)))].sort();
+  const sel = $('ovDay'), cur = sel.value;
+  sel.innerHTML = `<option value="">全部日期累計</option>` + days.map(d => `<option value="${d}">${rocDate(d)}</option>`).join('');
+  if (cur && days.includes(cur)) sel.value = cur;
+  renderBranchTable();
+}
+$('ovDay').onchange = renderBranchTable;
+$('ovReload').onclick = loadAdmin;
+function branchRows(){
+  const day = $('ovDay').value;
+  const list = ADMIN_DATA.claims.filter(c => !day || twDateKey(c.claimed_at) === day);
+  return BRANCHES.map(([code,name]) => {
+    const c = list.filter(x => x.branch_code === code);
+    const n = a => c.filter(x=>x.amount===a).length;
+    return { code, name, n500:n(500), n1000:n(1000), n2000:n(2000), cnt:c.length, amt:c.reduce((s,x)=>s+x.amount,0) };
+  });
+}
+function renderBranchTable(){
+  const rows = branchRows();
+  const s = k => rows.reduce((a,r)=>a+r[k],0);
+  $('ovBranch').innerHTML = `<thead><tr><th>分社</th><th class="n">500 元</th><th class="n">1,000 元</th><th class="n">2,000 元</th><th class="n">人數</th><th class="n">金額</th></tr></thead><tbody>`
+    + rows.map(r => `<tr><td>${r.code} ${r.name}</td><td class="n">${r.n500}</td><td class="n">${r.n1000}</td><td class="n">${r.n2000}</td><td class="n">${r.cnt}</td><td class="n">${money(r.amt)}</td></tr>`).join('')
+    + `<tr class="sum"><td>合計</td><td class="n">${s('n500')}</td><td class="n">${s('n1000')}</td><td class="n">${s('n2000')}</td><td class="n">${s('cnt')}</td><td class="n">${money(s('amt'))}</td></tr></tbody>`;
+}
+$('ovCsvBranch').onclick = () => {
+  const day = $('ovDay').value, rows = branchRows();
+  csvDownload(`敬老金分社統計_${day||'累計'}.csv`, [['分社代號','分社','500元人數','1000元人數','2000元人數','人數','金額'],
+    ...rows.map(r=>[r.code,r.name,r.n500,r.n1000,r.n2000,r.cnt,r.amt])]);
+};
+
+$('clBranch').innerHTML = `<option value="">全部分社</option>` + BRANCHES.map(([c,n]) => `<option value="${c}">${c} ${n}</option>`).join('');
+['clFilter','clBranch','clAmt'].forEach(id => $(id).oninput = renderClaims);
+function claimList(){
+  const f = $('clFilter').value.replace(/\D/g,''), b = $('clBranch').value, a = $('clAmt').value;
+  return ADMIN_DATA.claims.filter(c => (!f || c.member_no.includes(f)) && (!b || c.branch_code===b) && (!a || c.amount==a));
+}
+function renderClaims(){
+  if (!ADMIN_DATA) return;
+  const list = claimList();
+  $('clCount').textContent = `共 ${list.length} 筆・${money(list.reduce((s,x)=>s+x.amount,0))} 元`;
+  $('clTable').innerHTML = `<thead><tr><th>社籍號碼</th><th class="n">金額</th><th>分社</th><th>時間</th><th>領取</th><th>2000 核對</th><th></th></tr></thead><tbody>`
+    + list.slice(0,1000).map(c => `<tr><td>${esc(c.member_no)}</td><td class="n">${money(c.amount)}</td><td>${esc(c.branch_name)}</td><td>${tw(c.claimed_at)}</td>
+      <td>${c.by_proxy?'代領':'本人'}</td><td>${c.amount==2000?((c.id_checked&&c.addr_checked)?'✔ 身分證・地址':'—'):''}</td>
+      <td><button class="btn btn-soft" style="font-size:15px;padding:4px 10px" data-undo="${esc(c.member_no)}">撤銷</button></td></tr>`).join('')
+    + (list.length>1000?`<tr><td colspan="7" class="muted">只顯示前 1,000 筆，請用篩選或下載 CSV</td></tr>`:'') + `</tbody>`;
+  $('clTable').querySelectorAll('[data-undo]').forEach(b => b.onclick = async () => {
+    if (!confirm(`管理員撤銷 ${b.dataset.undo} 的銷帳？`)) return;
+    try { await rpc('elder_undo', { p_no: b.dataset.undo }); toast('已撤銷'); loadAdmin(); } catch(e){ toast(e.message, true); }
+  });
+  const log = ADMIN_DATA.log;
+  $('logTable').innerHTML = `<thead><tr><th>時間</th><th>動作</th><th>社籍號碼</th><th class="n">金額</th><th>原銷帳分社</th></tr></thead><tbody>`
+    + (log.length ? log.map(l => `<tr><td>${tw(l.at)}</td><td>${esc(l.action)}</td><td>${esc(l.member_no)}</td><td class="n">${money(l.amount)}</td><td>${esc(l.branch_name)}</td></tr>`).join('')
+       : `<tr><td colspan="5" class="muted">尚無撤銷</td></tr>`) + `</tbody>`;
+}
+$('clCsv').onclick = () => csvDownload(`敬老金銷帳明細_${todayKey()}.csv`, [['社籍號碼','金額','分社代號','分社','銷帳時間','領取方式','身分證已核對','戶籍地址已核對'],
+  ...claimList().map(c => [c.member_no,c.amount,c.branch_code,c.branch_name,tw(c.claimed_at),c.by_proxy?'代領':'本人',c.id_checked?'是':'',c.addr_checked?'是':''])]);
+$('clUnclaimed').onclick = async () => {
+  try { const u = await rpc('elder_admin_unclaimed');
+    csvDownload(`敬老金未領名單_${todayKey()}.csv`, [['社籍號碼','金額'], ...u.map(x=>[x.member_no,x.amount])]); }
+  catch(e){ toast(e.message, true); }
+};
+
+/* ---------- 補印 / 地址 ---------- */
+let RP = [];
+$('rpShow').onchange = renderReprints;
+async function loadReprints(){
+  // 管理員看全部；分社透過查詢頁登記，這頁顯示全社待更新清單需管理員權限
+  if (ME.is_admin) {
+    try { ADMIN_DATA = await rpc('elder_admin_all'); RP = ADMIN_DATA.reprints; } catch(e){ toast(e.message, true); return; }
+  } else {
+    RP = null;
+  }
+  renderReprints();
+}
+function renderReprints(){
+  if (RP === null) {
+    $('rpTable').innerHTML = `<tbody><tr><td class="muted" style="font-size:18px;line-height:1.8">
+      社員來補印通知單時：到「查詢銷帳」輸入社籍號碼 → 下方「登記補印通知單」。<br>
+      社員到櫃檯改好地址後：同樣查詢該號碼 → 按「已至櫃檯更新地址」。<br>
+      全社的待更新清單由管理員統一追蹤。</td></tr></tbody>`;
+    $('rpShow').classList.add('hidden'); $('rpCsv').classList.add('hidden');
+    return;
+  }
+  const list = $('rpShow').value==='pend' ? RP.filter(x=>!x.addr_updated) : RP;
+  $('rpTable').innerHTML = `<thead><tr><th>補印時間</th><th>社籍號碼</th><th>補印分社</th><th>補印經辦</th><th>備註</th><th>地址</th></tr></thead><tbody>`
+    + (list.length ? list.map(x => `<tr><td>${tw(x.created_at)}</td><td>${esc(x.member_no)}</td><td>${esc(x.branch_name)}</td><td>${esc(x.staff_name)}</td><td>${esc(x.note||'')}</td>
+      <td>${x.addr_updated ? `<span class="tag done">已更新</span> ${tw(x.addr_updated_at)} ${esc(x.addr_updated_branch)} ${esc(x.addr_updated_staff)}`
+        : `<button class="btn btn-clay" style="font-size:15px;padding:4px 10px" data-addr="${x.id}">已更新地址</button>`}</td></tr>`).join('')
+       : `<tr><td colspan="6" class="muted">沒有資料</td></tr>`) + `</tbody>`;
+  $('rpTable').querySelectorAll('[data-addr]').forEach(b => b.onclick = () => doAddr(+b.dataset.addr));
+}
+$('rpCsv').onclick = () => csvDownload(`敬老金補印名單_${todayKey()}.csv`, [['補印時間','社籍號碼','補印分社','補印經辦','備註','地址已更新','更新時間','更新分社','更新經辦'],
+  ...RP.map(x=>[tw(x.created_at),x.member_no,x.branch_name,x.staff_name,x.note||'',x.addr_updated?'是':'否',x.addr_updated_at?tw(x.addr_updated_at):'',x.addr_updated_branch||'',x.addr_updated_staff||''])]);
+
+/* ---------- 啟動 ---------- */
+initLogin();
+sb.auth.getSession().then(({ data }) => data.session ? enter() : showLogin());
+</script>
+</body>
+</html>
