@@ -138,6 +138,24 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
   #printArea th{background:#eee}
   .sig{display:flex;justify-content:space-around;margin-top:40px;font-size:16px}
 }
+@media (pointer: coarse){
+  #claimBtn{position:fixed;left:16px;right:16px;bottom:16px;width:auto;z-index:5;box-shadow:0 6px 18px rgba(54,89,85,.35)}
+  #qResult:has(#claimBtn){padding-bottom:90px}
+  .toast{bottom:auto;top:16px}
+  .search input{font-size:30px}
+}
+@media (pointer: coarse) and (max-width:640px){
+  header .wrap{min-height:52px}
+  header h1{font-size:16px}
+  .badge{padding:2px 10px;font-size:15px}
+  .btn-ghost{padding:4px 10px;font-size:15px}
+  nav.tabs{margin:10px 0 0}
+  nav.tabs button{padding:7px 12px;font-size:16px}
+  .card{padding:16px;margin:10px 0}
+  .mbox{padding:16px;gap:8px}
+  .mno b{font-size:30px}
+  .amt{font-size:40px}
+}
 @media (max-width:640px){
   .search{flex-direction:column}
   .state{margin-left:0;text-align:left}
@@ -181,7 +199,7 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
       <div class="card">
         <h2>輸入社籍號碼</h2>
         <div class="search">
-          <input type="text" id="qNo" inputmode="numeric" maxlength="8" placeholder="例：000614" autocomplete="off">
+          <input type="text" id="qNo" inputmode="numeric" enterkeyhint="go" maxlength="8" placeholder="例：000614" autocomplete="off">
           <button class="btn btn-main" id="qBtn">查詢</button>
         </div>
         <div class="result" id="qResult"></div>
@@ -392,11 +410,18 @@ $('qNo').onkeydown = e => {
   }
   doLookup();
 };
-$('qNo').oninput = () => { if (CUR && pad6($('qNo').value) !== CUR.member_no) { CUR = null; $('qResult').innerHTML = ''; } };
+const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches;
+$('qNo').oninput = () => {
+  const v = $('qNo').value.replace(/\D/g,'');
+  if (CUR && pad6(v) !== CUR.member_no) { CUR = null; $('qResult').innerHTML = ''; }
+  // 手機：打滿 6 碼自動查詢並收起鍵盤
+  if (IS_TOUCH && v.length === 6 && !(CUR && CUR.member_no === v)) { $('qNo').blur(); doLookup(); }
+};
 let CUR = null, CLAIMING = false;
 async function doLookup(){
   const raw = $('qNo').value.trim();
   if (!raw.replace(/\D/g,'')) { toast('請輸入社籍號碼', true); return; }
+  if (IS_TOUCH) $('qNo').blur();
   try { CUR = await rpc('elder_lookup', { p_no: raw }); renderResult(); }
   catch(e){ toast(e.message, true); }
 }
@@ -427,7 +452,7 @@ function renderResult(){
         <label class="chk"><input type="checkbox" id="ck1">已核對身分證字號與社籍資料一致</label>
         <label class="chk"><input type="checkbox" id="ck2">已核對「戶籍地址」與社籍資料一致</label>` : ''}
       <button class="btn btn-main bigbtn" id="claimBtn">確認銷帳 ${money(r.amount)} 元</button>
-      <div class="muted" style="text-align:center;margin-top:6px">${r.amount==2000?'勾完兩項後按 Enter 即可銷帳':'在號碼欄再按一次 Enter 即可銷帳'}</div></div>`;
+      <div class="muted" style="text-align:center;margin-top:6px">${IS_TOUCH ? (r.amount==2000?'勾完兩項後點下方按鈕銷帳':'點下方按鈕即可銷帳') : (r.amount==2000?'勾完兩項後按 Enter 即可銷帳':'在號碼欄再按一次 Enter 即可銷帳')}</div></div>`;
   }
   if (r.claimed && r.claim.can_undo) {
     h += `<div class="actions"><button class="btn btn-soft" id="undoBtn">撤銷這筆銷帳</button>
@@ -464,6 +489,7 @@ function renderResult(){
   if ($('rpBtn')) $('rpBtn').onclick = doReprint;
   box.querySelectorAll('[data-addr]').forEach(b => b.onclick = () => doAddr(+b.dataset.addr));
   bindReprintEdit(box, r.reprints, doLookup);
+  if (IS_TOUCH) box.scrollIntoView({behavior:'smooth', block:'start'});
 }
 // 補印登記：修改 / 取消（本分社或管理員）
 function bindReprintEdit(root, list, after){
@@ -507,7 +533,14 @@ async function doClaimInner(r, btn){
       p_id_checked: r.amount==2000 ? $('ck1').checked : false,
       p_addr_checked: r.amount==2000 ? $('ck2').checked : false });
     toast(`✔ ${r.member_no} 已銷帳 ${money(r.amount)} 元`);
-    CUR = null; $('qNo').value = ''; $('qResult').innerHTML = ''; $('qNo').focus();
+    CUR = null; $('qNo').value = '';
+    if (IS_TOUCH) {
+      $('qResult').innerHTML = `<div class="mbox free" style="justify-content:center;text-align:center;flex-direction:column">
+        <div style="font-size:48px">✔</div><div class="amt" style="font-size:30px">${esc(r.member_no)} 已銷帳 ${money(r.amount)} 元</div>
+        <button class="btn btn-main bigbtn" id="nextBtn">下一位</button></div>`;
+      $('nextBtn').onclick = () => { $('qResult').innerHTML = ''; $('qNo').focus(); };
+      window.scrollTo({top:0, behavior:'smooth'});
+    } else { $('qResult').innerHTML = ''; $('qNo').focus(); }
   } catch(e){ toast(e.message, true); btn.disabled = false; doLookup(); }
 }
 async function doUndo(){
