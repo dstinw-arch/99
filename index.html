@@ -197,6 +197,7 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
     <!-- 查詢銷帳 -->
     <div id="tab-lookup">
       <div class="card">
+        <div class="alert hidden" id="backfillBanner"></div>
         <h2>輸入社籍號碼</h2>
         <div class="search">
           <input type="text" id="qNo" inputmode="numeric" enterkeyhint="go" maxlength="8" placeholder="例：000614" autocomplete="off">
@@ -390,11 +391,27 @@ $('logoutBtn').onclick = async () => { await sb.auth.signOut(); $('qResult').inn
 function showTab(k){
   ['lookup','day','overview','recon','claims','reprint'].forEach(t => $('tab-'+t).classList.toggle('hidden', t!==k));
   $('tabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab===k));
-  if (k==='lookup') setTimeout(()=>$('qNo').focus(), 50);
+  if (k==='lookup') { updateBackfillBanner(); setTimeout(()=>$('qNo').focus(), 50); }
   if (k==='day') { loadDay(); loadSummary(); }
   if (k==='overview' || k==='claims' || k==='recon') loadAdmin();
   if (k==='reprint') loadReprints();
 }
+
+/* ---------- 補登時段（與資料庫 elder_backfill 設定一致） ---------- */
+const BACKFILL = [{ keyDay:'2026-10-13', until:'11:00', asDay:'2026-10-12' }];
+function backfillNow(){
+  const now = new Date();
+  const day = twDateKey(now);
+  const hm = new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Taipei',hour:'2-digit',minute:'2-digit',hour12:false}).format(now);
+  return BACKFILL.find(b => b.keyDay === day && hm < b.until);
+}
+function updateBackfillBanner(){
+  const b = backfillNow(), el = $('backfillBanner');
+  if (!el) return;
+  if (b) { el.textContent = `補登時段：現在 KEY 入的都算 ${rocDate(b.asDay)} 的帳（${b.until} 以後才算今天）`; el.classList.remove('hidden'); }
+  else el.classList.add('hidden');
+}
+setInterval(updateBackfillBanner, 30000);
 
 /* ---------- 查詢 / 銷帳 ---------- */
 $('qBtn').onclick = doLookup;
@@ -532,7 +549,8 @@ async function doClaimInner(r, btn){
     await rpc('elder_claim', { p_no: r.member_no, p_by_proxy: proxy,
       p_id_checked: r.amount==2000 ? $('ck1').checked : false,
       p_addr_checked: r.amount==2000 ? $('ck2').checked : false });
-    toast(`✔ ${r.member_no} 已銷帳 ${money(r.amount)} 元`);
+    const bf = backfillNow();
+    toast(`✔ ${r.member_no} 已銷帳 ${money(r.amount)} 元${bf ? `（算 ${rocDate(bf.asDay)}）` : ''}`);
     CUR = null; $('qNo').value = '';
     if (IS_TOUCH) {
       $('qResult').innerHTML = `<div class="mbox free" style="justify-content:center;text-align:center;flex-direction:column">
@@ -641,9 +659,9 @@ $('sumPrint').onclick = async () => {
 // 管理員：每日對帳
 function reconData(){
   const claims = ADMIN_DATA.claims;
-  const days = allDays(claims.map(c => twDateKey(c.claimed_at)));
+  const days = allDays(claims.map(c => (c.biz_date || twDateKey(c.claimed_at))));
   const map = {}; // day|branch|amount -> n
-  claims.forEach(c => { const k = `${twDateKey(c.claimed_at)}|${c.branch_code}|${c.amount}`; map[k]=(map[k]||0)+1; });
+  claims.forEach(c => { const k = `${(c.biz_date || twDateKey(c.claimed_at))}|${c.branch_code}|${c.amount}`; map[k]=(map[k]||0)+1; });
   const get = (d,b,a) => map[`${d}|${b}|${a}`]||0;
   return { days, get };
 }
@@ -723,7 +741,7 @@ function renderOverview(){
     <div class="s">${pct}%・已發 ${money(amtCl)} / ${money(amt)} 元</div></div>`;
 
   // 日期選單
-  const days = [...new Set(ADMIN_DATA.claims.map(c => twDateKey(c.claimed_at)))].sort();
+  const days = [...new Set(ADMIN_DATA.claims.map(c => (c.biz_date || twDateKey(c.claimed_at))))].sort();
   const sel = $('ovDay'), cur = sel.value;
   sel.innerHTML = `<option value="">全部日期累計</option>` + days.map(d => `<option value="${d}">${rocDate(d)}</option>`).join('');
   if (cur && days.includes(cur)) sel.value = cur;
@@ -733,7 +751,7 @@ $('ovDay').onchange = renderBranchTable;
 $('ovReload').onclick = loadAdmin;
 function branchRows(){
   const day = $('ovDay').value;
-  const list = ADMIN_DATA.claims.filter(c => !day || twDateKey(c.claimed_at) === day);
+  const list = ADMIN_DATA.claims.filter(c => !day || (c.biz_date || twDateKey(c.claimed_at)) === day);
   return BRANCHES.map(([code,name]) => {
     const c = list.filter(x => x.branch_code === code);
     const n = a => c.filter(x=>x.amount===a).length;
