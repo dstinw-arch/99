@@ -117,6 +117,11 @@ tr.sum td{font-weight:900;background:#F7FBFA}
 .recon thead tr:first-child th{text-align:center}
 .recon tr.daysum td{font-weight:900;background:#FFF3EE}
 .recon tr.grand td{font-weight:900;background:var(--mist)}
+.recon tr.hqrow td{border-bottom:3px double var(--mid)}
+.recon tr.split td{font-weight:700;background:#F7FBFA;border-top:3px double var(--mid)}
+.recon tr.subsum td{font-weight:900;background:#FFF3EE;color:#7A3418}
+.recon tr.split td:first-child,.recon tr.subsum td:first-child,.recon tr.grand td:first-child{white-space:nowrap}
+@media print{.recon tr.subsum td{background:#fff!important;color:#000!important;border-top:2px solid #000;border-bottom:2px solid #000}}
 .recon td.click{cursor:pointer;color:var(--mid);text-decoration:underline}
 .dayhead{font-size:20px;font-weight:900;color:var(--deep);margin:20px 0 8px}
 .tablebox{overflow:auto;max-height:520px;border-radius:12px;border:1px solid var(--line)}
@@ -803,22 +808,36 @@ function reconHtml(){
   const { days, get } = reconData();
   const fd = $('rcDay').value, fb = $('rcBranch').value;
   const brs = BRANCHES.filter(([c]) => !fb || c===fb);
+  const HQ = BRANCHES[0], SUBS = BRANCHES.slice(1);   // 0016 總社；0025–0168 分社
   const rowFor = (d,[c,n]) => ({ label:`${c} ${n}`, n500:get(d,c,500), n1000:get(d,c,1000), n2000:get(d,c,2000) });
+  const sumOver = (ds, list, label) => addUp(ds.flatMap(d => list.map(b => rowFor(d,b))), label);
+  // 三行彙總：總社 / 分社小計（總分社往來）/ 全社合計
+  const splitRows = (ds, prefix='') => {
+    const hq  = sumOver(ds, [HQ], `${prefix}總社 0016 營業部`);
+    const sub = sumOver(ds, SUBS, `${prefix}分社小計 0025–0168　<span class="tag pend">總分社往來</span>`);
+    const all = sumOver(ds, BRANCHES, `${prefix}全社合計 0016–0168`);
+    return reconRow(hq,'split') + reconRow(sub,'subsum') + reconRow(all,'grand');
+  };
+  const table = (head, body) => `<div class="tablebox" style="max-height:none"><table class="recon">${reconHead(head)}<tbody>${body}</tbody></table></div>`;
   let html = '';
   if (fd === '__byday') {
-    const rows = days.map(d => addUp(brs.map(b=>rowFor(d,b)), shortDay(d)));
-    html = `<div class="tablebox" style="max-height:none"><table class="recon">${reconHead('日期')}<tbody>${rows.map(r=>reconRow(r)).join('')}${reconRow(addUp(rows,'期間合計'),'grand')}</tbody></table></div>`;
+    if (fb) {
+      const rows = days.map(d => addUp(brs.map(b=>rowFor(d,b)), shortDay(d)));
+      html = table('日期', rows.map(r=>reconRow(r)).join('') + reconRow(addUp(rows,'期間合計'),'grand'));
+    } else {
+      html = table('日期／項目', days.map(d => splitRows([d], `${shortDay(d)}　`)).join('') + splitRows(days, '期間累計　'));
+    }
   } else {
     const ds = fd ? [fd] : days;
-    const dayTotals = [];
     ds.forEach(d => {
-      const rows = brs.map(b => rowFor(d,b));
-      const t = addUp(rows, `${shortDay(d)} 合計`); dayTotals.push(t);
-      html += `<div class="dayhead">${rocDate(d)}</div><div class="tablebox" style="max-height:none"><table class="recon">${reconHead('分社')}<tbody>${rows.map(r=>reconRow(r)).join('')}${reconRow(t,'daysum')}</tbody></table></div>`;
+      const body = brs.map(b => reconRow(rowFor(d,b), b[0]===HQ[0] && !fb ? 'hqrow' : '')).join('')
+        + (fb ? reconRow(addUp(brs.map(b=>rowFor(d,b)), `${shortDay(d)} 合計`),'daysum') : splitRows([d]));
+      html += `<div class="dayhead">${rocDate(d)}</div>` + table('分社', body);
     });
     if (!fd) {
       const per = brs.map(b => addUp(days.map(d=>rowFor(d,b)), `${b[0]} ${b[1]}`));
-      html += `<div class="dayhead">期間累計（各分社）</div><div class="tablebox" style="max-height:none"><table class="recon">${reconHead('分社')}<tbody>${per.map(r=>reconRow(r)).join('')}${reconRow(addUp(per,'期間合計'),'grand')}</tbody></table></div>`;
+      html += `<div class="dayhead">期間累計（各分社）</div>` + table('分社',
+        per.map((r,i)=>reconRow(r, brs[i][0]===HQ[0] && !fb ? 'hqrow' : '')).join('') + (fb ? reconRow(addUp(per,'期間合計'),'grand') : splitRows(days)));
     }
   }
   return html;
@@ -828,10 +847,16 @@ $('rcReload').onclick = loadAdmin;
 $('rcCsv').onclick = () => {
   const { days, get } = reconData();
   const rows = [['日期','分社代號','分社','500元筆數','500元金額','1000元筆數','1000元金額','2000元筆數','2000元金額','合計筆數','合計金額']];
-  days.forEach(d => BRANCHES.forEach(([c,n]) => {
+  const sumLine = (d, list, code, name) => { let x=0,y=0,z=0; list.forEach(([c]) => { x+=get(d,c,500); y+=get(d,c,1000); z+=get(d,c,2000); });
+    rows.push([rocDate(d), code, name, x, x*500, y, y*1000, z, z*2000, x+y+z, x*500+y*1000+z*2000]); };
+  days.forEach(d => { BRANCHES.forEach(([c,n]) => {
     const a=get(d,c,500), b=get(d,c,1000), e=get(d,c,2000);
     rows.push([rocDate(d), c, n, a, a*500, b, b*1000, e, e*2000, a+b+e, a*500+b*1000+e*2000]);
-  }));
+  });
+    sumLine(d, BRANCHES.slice(0,1), '0016', '總社小計');
+    sumLine(d, BRANCHES.slice(1), '0025-0168', '分社小計（總分社往來）');
+    sumLine(d, BRANCHES, '0016-0168', '全社合計');
+  });
   csvDownload(`敬老金每日對帳_${todayKey()}.csv`, rows);
 };
 $('rcPrint').onclick = () => {
