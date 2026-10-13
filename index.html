@@ -81,6 +81,7 @@ label.chk input{width:24px;height:24px;accent-color:var(--clay)}
 .radio label:has(input:checked){background:var(--mid);border-color:var(--mid);color:#fff}
 .bigbtn{width:100%;font-size:26px;padding:18px}
 .alert{background:var(--peach);color:#6B3018;border-radius:14px;padding:14px 18px;font-weight:700;margin:12px 0}
+.alert.same{background:#FDE2DA;color:#7A1F0E;border:2px solid #C2553B;font-size:19px}
 .alert.note{background:#FFE9A8;color:#5A4300;border:2px solid #E0B43A}
 .alert.soft{background:#FFF3EE;font-weight:500}
 .rp{border-top:1.5px dashed var(--line);padding:12px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
@@ -277,6 +278,7 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
           <select id="clAmt"><option value="">全部金額</option><option>500</option><option>1000</option><option>2000</option></select>
           <button class="btn btn-soft" id="clCsv">下載明細 CSV</button>
           <button class="btn btn-soft" id="clUnclaimed">下載未領名單 CSV</button>
+          <button class="btn btn-soft" id="clSame">下載同名同姓清單 CSV</button>
         </div>
         <div class="muted" id="clCount"></div>
         <div class="tablebox"><table id="clTable"></table></div>
@@ -526,7 +528,7 @@ $('qNo').onkeydown = e => {
   // 同一個號碼已查出且可銷帳 → 第二次 Enter 直接銷帳
   if (CUR && CUR.found && v && pad6(v) === CUR.member_no && $('claimBtn')) {
     const cb = $('claimBtn');
-    if (cb.disabled) { toast(CUR.amount==2000 ? '2,000 元請先勾選兩項核對' : '處理中…', true); return; }
+    if (cb.disabled) { toast($('ck1') ? '請先勾選核對身分證字號' + ($('ck2') ? '及戶籍地址' : '') : '處理中…', true); return; }
     doClaim(); return;
   }
   doLookup();
@@ -555,7 +557,11 @@ function renderResult(){
   }
   const pend = r.reprints.filter(x => !x.addr_updated);
   const notes = r.notes || [];
+  const same = r.same_name || [];
+  const needId = r.amount==2000 || same.length > 0, needAddr = r.amount==2000;
   let h = '';
+  if (same.length) h += `<div class="alert same">⚠ 同名同姓！本號碼與 ${same.map(s => `<b>${esc(s.member_no)}</b>${s.claimed?'（已領）':'（未領）'}`).join('、')} 姓名相同或相近。
+    <div style="font-weight:500;margin-top:6px">請務必核對<b>身分證字號</b>，並確認換領券上的社籍號碼就是 ${esc(r.member_no)}，再銷帳。</div></div>`;
   notes.forEach(n => { h += `<div class="alert note">${esc(n.note)}
     <div class="muted" style="font-weight:500;margin-top:6px;font-size:15px">${esc(n.branch_name)}・${tw(n.created_at)}
     <button class="btn btn-soft" style="font-size:15px;padding:4px 12px;margin-left:8px" data-noteok="${n.id}">已處理，移除註記</button></div></div>`; });
@@ -573,11 +579,11 @@ function renderResult(){
         <label><input type="radio" name="who" value="self" checked><span>本人領取</span></label>
         <label><input type="radio" name="who" value="proxy"><span>代領</span></label>
       </div>
-      ${r.amount==2000 ? `<div class="alert soft">2,000 元（100 歲）須核對下列兩項，以利後續扣繳申報：</div>
-        <label class="chk"><input type="checkbox" id="ck1">已核對身分證字號與社籍資料一致</label>
-        <label class="chk"><input type="checkbox" id="ck2">已核對「戶籍地址」與社籍資料一致</label>` : ''}
+      ${needAddr ? `<div class="alert soft">2,000 元（100 歲）須核對下列兩項，以利後續扣繳申報：</div>` : ''}
+      ${needId ? `<label class="chk"><input type="checkbox" id="ck1">已核對身分證字號與社籍資料一致${same.length?'，確認是 '+esc(r.member_no)+' 本人':''}</label>` : ''}
+      ${needAddr ? `<label class="chk"><input type="checkbox" id="ck2">已核對「戶籍地址」與社籍資料一致</label>` : ''}
       <button class="btn btn-main bigbtn" id="claimBtn">確認銷帳 ${money(r.amount)} 元</button>
-      <div class="muted" style="text-align:center;margin-top:6px">${IS_TOUCH ? (r.amount==2000?'勾完兩項後點下方按鈕銷帳':'點下方按鈕即可銷帳') : (r.amount==2000?'勾完兩項後按 Enter 即可銷帳':'在號碼欄再按一次 Enter 即可銷帳')}</div></div>`;
+      <div class="muted" style="text-align:center;margin-top:6px">${IS_TOUCH ? (needId?'勾選核對後點下方按鈕銷帳':'點下方按鈕即可銷帳') : (needId?'勾選核對後按 Enter 即可銷帳':'在號碼欄再按一次 Enter 即可銷帳')}</div></div>`;
   }
   if (r.claimed && r.claim.can_undo) {
     h += `<div class="actions"><button class="btn btn-soft" id="undoBtn">撤銷這筆銷帳</button>
@@ -613,8 +619,10 @@ function renderResult(){
 
   const cb = $('claimBtn');
   if (cb) {
-    const sync = () => { if (r.amount==2000) { cb.disabled = !($('ck1').checked && $('ck2').checked); if (!cb.disabled) cb.focus(); } };
-    if (r.amount==2000) { $('ck1').onchange = sync; $('ck2').onchange = sync; sync(); }
+    const sync = () => { cb.disabled = !((!needId || $('ck1').checked) && (!needAddr || $('ck2').checked)); if (!cb.disabled && needId) cb.focus(); };
+    if (needId) $('ck1').onchange = sync;
+    if (needAddr) $('ck2').onchange = sync;
+    sync();
     cb.onclick = doClaim;
   }
   if ($('undoBtn')) $('undoBtn').onclick = doUndo;
@@ -672,8 +680,8 @@ async function doClaimInner(r, btn){
   const proxy = document.querySelector('input[name=who]:checked').value === 'proxy';
   try {
     await rpc('elder_claim', { p_no: r.member_no, p_by_proxy: proxy,
-      p_id_checked: r.amount==2000 ? $('ck1').checked : false,
-      p_addr_checked: r.amount==2000 ? $('ck2').checked : false });
+      p_id_checked: $('ck1') ? $('ck1').checked : false,
+      p_addr_checked: $('ck2') ? $('ck2').checked : false });
     const bf = backfillNow();
     toast(`✔ ${r.member_no} 已銷帳 ${money(r.amount)} 元${bf ? `（算 ${rocDate(bf.asDay)}）` : ''}`);
     CUR = null; $('qNo').value = '';
@@ -952,6 +960,11 @@ function renderClaims(){
 }
 $('clCsv').onclick = () => csvDownload(`敬老金銷帳明細_${todayKey()}.csv`, [['社籍號碼','金額','分社代號','分社','銷帳時間','領取方式','身分證已核對','戶籍地址已核對'],
   ...claimList().map(c => [c.member_no,c.amount,c.branch_code,c.branch_name,tw(c.claimed_at),c.by_proxy?'代領':'本人',c.id_checked?'是':'',c.addr_checked?'是':''])]);
+$('clSame').onclick = () => {
+  const list = (ADMIN_DATA && ADMIN_DATA.samename) || [];
+  csvDownload(`敬老金同名同姓清單_${todayKey()}.csv`, [['組別','社籍號碼','金額','狀態','銷帳分社','銷帳時間','已核對身分證'],
+    ...list.map(x => [x.grp, x.member_no, x.amount, x.claimed_at?'已領':'未領', x.branch_name||'', x.claimed_at?tw(x.claimed_at):'', x.claimed_at?(x.id_checked?'是':'否（功能上線前）'):''])]);
+};
 $('clUnclaimed').onclick = async () => {
   try { const u = await rpc('elder_admin_unclaimed');
     csvDownload(`敬老金未領名單_${todayKey()}.csv`, [['社籍號碼','金額'], ...u.map(x=>[x.member_no,x.amount])]); }
