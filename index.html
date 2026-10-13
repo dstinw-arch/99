@@ -453,6 +453,8 @@ b.k{font-weight:700}
 .head .logo-bw{display:none}
 .addr{font-size:12.5pt;letter-spacing:.04em;padding-left:1mm}
 .zhi{margin-top:4mm;display:flex;align-items:center;gap:8mm}
+.mno2{font-size:13pt;line-height:1.9;margin-left:4mm}
+.mno2 span{display:inline-block;min-width:24mm;font-weight:700;letter-spacing:.08em}
 .stamp{display:inline-block;border:1.1mm solid #D0342C;color:#D0342C;border-radius:1.5mm;width:16mm;padding:2mm 0;
   text-align:center;font-size:26pt;font-weight:700;line-height:1.25;transform:rotate(-3deg);}
 *{font-family:inherit}
@@ -479,12 +481,12 @@ b.k{font-weight:700}
 <div class="chair">理事主席　　呂　子　昌</div>
 </div>
 <div class="coupon">新北市淡水信用合作社　社員重陽敬老金換領券</div>
-<div class="mno">社籍號碼：<span>${esc(no)}</span><br>社員姓名：<span></span></div>
+
 
 <div class="lower">
 茲領取重陽敬老金如下金額無誤，如有冒名或重覆領取者，願自負法律責任。
 <div class="amt">新台幣${AMT_TW[amount]}元整</div>
-<div class="zhi">此致　　新北市淡水信用合作社　存照<span class="stamp">補<br>印</span></div>
+<div class="zhi">此致　　新北市淡水信用合作社　存照<span class="stamp">補<br>印</span><div class="mno2">社籍號碼：<span>${esc(no)}</span><br>社員姓名：<span></span></div></div>
 <div class="sig"><span>領取人簽章：<span class="box"></span></span><span style="margin-right:20mm">代領人簽章：<span class="box"></span></span></div>
 <div class="chk">核對經辦簽章：</div>
 </div>
