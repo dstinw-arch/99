@@ -281,10 +281,10 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
       </div>
     </div>
 
-    <!-- 補印通知單 -->
+    <!-- 補發通知單 -->
     <div id="tab-reprint" class="hidden">
       <div class="card">
-        <h2>補印通知單・待更新地址</h2>
+        <h2>補發通知單・待更新地址</h2>
         <div class="toolbar">
           <select id="rpShow"><option value="pend">只看未更新地址</option><option value="all">全部</option></select>
           <button class="btn btn-soft" id="rpCsv">下載 CSV</button>
@@ -375,8 +375,8 @@ async function enter(){
   $('mainView').classList.remove('hidden');
   $('whoBadge').textContent = ME.is_admin ? '管理員' : `${ME.branch_code} ${ME.branch_name}`;
   const tabs = ME.is_admin
-    ? [['overview','發放總覽'],['recon','每日對帳'],['claims','銷帳明細'],['reprint','補印／地址'],['lookup','查詢']]
-    : [['lookup','查詢銷帳'],['day','本社日報'],['reprint','補印／地址']];
+    ? [['overview','發放總覽'],['recon','每日對帳'],['claims','銷帳明細'],['reprint','補發／地址'],['lookup','查詢']]
+    : [['lookup','查詢銷帳'],['day','本社日報'],['reprint','補發／地址']];
   $('tabs').innerHTML = tabs.map(([k,n]) => `<button data-tab="${k}">${n}</button>`).join('');
   $('tabs').querySelectorAll('button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
   showTab(tabs[0][0]);
@@ -451,7 +451,7 @@ function renderResult(){
   }
   const pend = r.reprints.filter(x => !x.addr_updated);
   let h = '';
-  if (pend.length) h += `<div class="alert">⚠ 此社員曾補印通知單，請提醒至櫃檯更新收件地址（${pend.length} 筆未更新）</div>`;
+  if (pend.length) h += `<div class="alert">⚠ 此社員曾補發通知單，請提醒至櫃檯更新收件地址（${pend.length} 筆未更新）</div>`;
   h += `<div class="mbox ${r.claimed?'done':'free'}">
       <div class="mno">社籍號碼<b>${esc(r.member_no)}</b></div>
       <div class="amt ${r.amount==2000?'a2000':''}">${money(r.amount)}<small> 元</small></div>
@@ -476,21 +476,21 @@ function renderResult(){
       <span class="muted" style="margin-left:10px">${ME.is_admin?'管理員可撤銷任何一筆':'僅限本社當天銷帳可撤銷'}</span></div>`;
   }
 
-  // 補印紀錄
-  h += `<div class="card" style="background:#FBFDFC;margin-top:18px"><h2 style="font-size:19px">補印通知單紀錄</h2>`;
+  // 補發紀錄
+  h += `<div class="card" style="background:#FBFDFC;margin-top:18px"><h2 style="font-size:19px">補發通知單紀錄</h2>`;
   h += r.reprints.length ? r.reprints.map(x => `<div class="rp" data-rp="${x.id}">
       <span class="tag ${x.addr_updated?'done':'pend'}">${x.addr_updated?'地址已更新':'待更新地址'}</span>
-      <span>${tw(x.created_at)}・${esc(x.branch_name)}・補印經辦名字 <b>${esc(x.staff_name)}</b>${x.note?`・${esc(x.note)}`:''}${x.edited_at?' <span class="muted">（已修改）</span>':''}</span>
+      <span>${tw(x.created_at)}・${esc(x.branch_name)}・補發經辦名字 <b>${esc(x.staff_name)}</b>${x.note?`・${esc(x.note)}`:''}${x.edited_at?' <span class="muted">（已修改）</span>':''}</span>
       ${x.addr_updated ? `<span class="muted">（${tw(x.addr_updated_at)} ${esc(x.addr_updated_branch)} ${esc(x.addr_updated_staff)}）</span>`
         : `<button class="btn btn-clay" style="margin-left:auto;font-size:17px;padding:8px 14px" data-addr="${x.id}">已至櫃檯更新地址</button>`}
       ${x.can_edit ? `<button class="btn btn-soft" style="font-size:16px;padding:6px 12px" data-rpedit="${x.id}">修改</button>
         <button class="btn btn-soft" style="font-size:16px;padding:6px 12px" data-rpcancel="${x.id}">取消登記</button>` : ''}
     </div>`).join('') : `<div class="muted">無</div>`;
-  h += `<details class="rpform"><summary>＋ 登記補印通知單（社員說沒收到）</summary>
+  h += `<details class="rpform"><summary>＋ 登記補發通知單（社員說沒收到）</summary>
       <div class="row2" style="margin-top:12px">
-        <label class="field"><span>補印經辦名字</span><input type="text" id="rpStaff" value="${esc(staffName())}"></label>
+        <label class="field"><span>補發經辦名字</span><input type="text" id="rpStaff" value="${esc(staffName())}"></label>
         <label class="field"><span>備註（選填）</span><input type="text" id="rpNote" placeholder="例：搬家未收到"></label>
-        <button class="btn btn-clay" id="rpBtn">登記補印</button>
+        <button class="btn btn-clay" id="rpBtn">登記補發</button>
       </div>
       <div class="muted" style="margin-top:6px">登記後會註記「待更新地址」，請引導社員至櫃檯辦理社籍地址變更。</div>
     </details></div>`;
@@ -508,14 +508,14 @@ function renderResult(){
   bindReprintEdit(box, r.reprints, doLookup);
   if (IS_TOUCH) box.scrollIntoView({behavior:'smooth', block:'start'});
 }
-// 補印登記：修改 / 取消（本分社或管理員）
+// 補發登記：修改 / 取消（本分社或管理員）
 function bindReprintEdit(root, list, after){
   root.querySelectorAll('[data-rpedit]').forEach(b => b.onclick = () => {
     const id = +b.dataset.rpedit, x = list.find(v => v.id === id);
     const holder = b.closest('[data-rp]') || b.closest('tr');
     const form = document.createElement('div');
     form.className = 'row2'; form.style.cssText = 'margin:10px 0;width:100%';
-    form.innerHTML = `<label class="field"><span>補印經辦名字</span><input type="text" class="eStaff" value="${esc(x.staff_name)}"></label>
+    form.innerHTML = `<label class="field"><span>補發經辦名字</span><input type="text" class="eStaff" value="${esc(x.staff_name)}"></label>
       <label class="field"><span>備註</span><input type="text" class="eNote" value="${esc(x.note||'')}"></label>
       <div style="display:flex;gap:8px"><button class="btn btn-main eSave">儲存</button><button class="btn btn-soft eBack">取消</button></div>`;
     if (holder.tagName === 'TR') {
@@ -527,13 +527,13 @@ function bindReprintEdit(root, list, after){
     form.querySelector('.eStaff').focus();
     form.querySelector('.eSave').onclick = async () => {
       const s = form.querySelector('.eStaff').value.trim();
-      if (!s) { toast('請填補印經辦名字', true); return; }
+      if (!s) { toast('請填補發經辦名字', true); return; }
       try { await rpc('elder_reprint_edit', { p_id: id, p_staff: s, p_note: form.querySelector('.eNote').value }); toast('已修改'); after(); }
       catch(e){ toast(e.message, true); }
     };
   });
   root.querySelectorAll('[data-rpcancel]').forEach(b => b.onclick = async () => {
-    if (!confirm('確定取消這筆補印登記？（登記錯誤時使用）')) return;
+    if (!confirm('確定取消這筆補發登記？（登記錯誤時使用）')) return;
     try { await rpc('elder_reprint_cancel', { p_id: +b.dataset.rpcancel }); toast('已取消登記'); after(); }
     catch(e){ toast(e.message, true); }
   });
@@ -568,9 +568,9 @@ async function doUndo(){
 }
 async function doReprint(){
   const s = $('rpStaff').value.trim();
-  if (!s) { toast('請填補印經辦姓名', true); return; }
+  if (!s) { toast('請填補發經辦姓名', true); return; }
   saveStaff(s);
-  try { await rpc('elder_reprint', { p_no: CUR.member_no, p_staff: s, p_note: $('rpNote').value }); toast('已登記補印'); await doLookup(); }
+  try { await rpc('elder_reprint', { p_no: CUR.member_no, p_staff: s, p_note: $('rpNote').value }); toast('已登記補發'); await doLookup(); }
   catch(e){ toast(e.message, true); }
 }
 async function doAddr(id){
@@ -803,7 +803,7 @@ $('clUnclaimed').onclick = async () => {
   catch(e){ toast(e.message, true); }
 };
 
-/* ---------- 補印 / 地址 ---------- */
+/* ---------- 補發 / 地址 ---------- */
 let RP = [];
 $('rpShow').onchange = renderReprints;
 async function loadReprints(){
@@ -818,14 +818,14 @@ async function loadReprints(){
 function renderReprints(){
   if (RP === null) {
     $('rpTable').innerHTML = `<tbody><tr><td class="muted" style="font-size:18px;line-height:1.8">
-      社員來補印通知單時：到「查詢銷帳」輸入社籍號碼 → 下方「登記補印通知單」。<br>
+      社員來補發通知單時：到「查詢銷帳」輸入社籍號碼 → 下方「登記補發通知單」。<br>
       社員到櫃檯改好地址後：同樣查詢該號碼 → 按「已至櫃檯更新地址」。<br>
-      登記錯了：在查詢結果的補印紀錄按「修改」或「取消登記」（限本分社登記的）。<br>全社的待更新清單由管理員統一追蹤。</td></tr></tbody>`;
+      登記錯了：在查詢結果的補發紀錄按「修改」或「取消登記」（限本分社登記的）。<br>全社的待更新清單由管理員統一追蹤。</td></tr></tbody>`;
     $('rpShow').classList.add('hidden'); $('rpCsv').classList.add('hidden');
     return;
   }
   const list = $('rpShow').value==='pend' ? RP.filter(x=>!x.addr_updated) : RP;
-  $('rpTable').innerHTML = `<thead><tr><th>補印時間</th><th>社籍號碼</th><th>補印分社</th><th>補印經辦名字</th><th>備註</th><th>地址</th><th></th></tr></thead><tbody>`
+  $('rpTable').innerHTML = `<thead><tr><th>補發時間</th><th>社籍號碼</th><th>補發分社</th><th>補發經辦名字</th><th>備註</th><th>地址</th><th></th></tr></thead><tbody>`
     + (list.length ? list.map(x => `<tr><td>${tw(x.created_at)}</td><td>${esc(x.member_no)}</td><td>${esc(x.branch_name)}</td><td>${esc(x.staff_name)}</td><td>${esc(x.note||'')}</td>
       <td>${x.addr_updated ? `<span class="tag done">已更新</span> ${tw(x.addr_updated_at)} ${esc(x.addr_updated_branch)} ${esc(x.addr_updated_staff)}`
         : `<button class="btn btn-clay" style="font-size:15px;padding:4px 10px" data-addr="${x.id}">已更新地址</button>`}</td>
@@ -835,7 +835,7 @@ function renderReprints(){
   $('rpTable').querySelectorAll('[data-addr]').forEach(b => b.onclick = () => doAddr(+b.dataset.addr));
   bindReprintEdit($('rpTable'), RP, loadReprints);
 }
-$('rpCsv').onclick = () => csvDownload(`敬老金補印名單_${todayKey()}.csv`, [['補印時間','社籍號碼','補印分社','補印經辦名字','備註','地址已更新','更新時間','更新分社','更新經辦'],
+$('rpCsv').onclick = () => csvDownload(`敬老金補發名單_${todayKey()}.csv`, [['補發時間','社籍號碼','補發分社','補發經辦名字','備註','地址已更新','更新時間','更新分社','更新經辦'],
   ...RP.map(x=>[tw(x.created_at),x.member_no,x.branch_name,x.staff_name,x.note||'',x.addr_updated?'是':'否',x.addr_updated_at?tw(x.addr_updated_at):'',x.addr_updated_branch||'',x.addr_updated_staff||''])]);
 
 /* ---------- 啟動 ---------- */
