@@ -81,6 +81,7 @@ label.chk input{width:24px;height:24px;accent-color:var(--clay)}
 .radio label:has(input:checked){background:var(--mid);border-color:var(--mid);color:#fff}
 .bigbtn{width:100%;font-size:26px;padding:18px}
 .alert{background:var(--peach);color:#6B3018;border-radius:14px;padding:14px 18px;font-weight:700;margin:12px 0}
+.alert.note{background:#FFE9A8;color:#5A4300;border:2px solid #E0B43A}
 .alert.soft{background:#FFF3EE;font-weight:500}
 .rp{border-top:1.5px dashed var(--line);padding:12px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
 .rp:first-child{border-top:none}
@@ -276,6 +277,10 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
         <div class="tablebox"><table id="clTable"></table></div>
       </div>
       <div class="card">
+        <h2>註記（待確認事項）</h2>
+        <div class="tablebox"><table id="noteTable"></table></div>
+      </div>
+      <div class="card">
         <h2>撤銷紀錄</h2>
         <div class="tablebox"><table id="logTable"></table></div>
       </div>
@@ -463,7 +468,12 @@ b.k{font-weight:700}
   .stamp{color:#000;border-color:#000}         /* 黑白列印：補發章轉實心黑 */
   body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
-</style></head><body><div class="page">
+.toolbar{position:sticky;top:0;z-index:9;display:flex;gap:12px;justify-content:center;padding:12px;background:#E2F2EE;border-bottom:2px solid #508E7E}
+.toolbar button{font:inherit;font-size:20px;font-weight:700;border:none;border-radius:12px;padding:12px 22px;cursor:pointer}
+.toolbar .back{background:#fff;color:#365955;border:2px solid #508E7E}
+.toolbar .pr{background:#508E7E;color:#fff}
+@media print{.toolbar{display:none!important}}
+</style></head><body><div class="toolbar"><button class="back" onclick="window.close();setTimeout(function(){history.back()},300)">← 返回銷帳</button><button class="pr" onclick="window.print()">列印</button></div><div class="page">
 <div class="head"><img class="logo" src="${LOGO_C}" alt="淡水信用合作社"><img class="logo logo-bw" src="${LOGO_B}" alt="淡水信用合作社"><div class="addr">地址　251018 新北市淡水區中正路 67 號</div></div>
 
 <div class="title">＊社員重陽敬老金通知</div>
@@ -539,7 +549,11 @@ function renderResult(){
     return;
   }
   const pend = r.reprints.filter(x => !x.addr_updated);
+  const notes = r.notes || [];
   let h = '';
+  notes.forEach(n => { h += `<div class="alert note">${esc(n.note)}
+    <div class="muted" style="font-weight:500;margin-top:6px;font-size:15px">${esc(n.branch_name)}・${tw(n.created_at)}
+    <button class="btn btn-soft" style="font-size:15px;padding:4px 12px;margin-left:8px" data-noteok="${n.id}">已處理，移除註記</button></div></div>`; });
   if (pend.length) h += `<div class="alert">⚠ 此社員曾補發通知單，請提醒至櫃檯更新收件地址（${pend.length} 筆未更新）</div>`;
   h += `<div class="mbox ${r.claimed?'done':'free'}">
       <div class="mno">社籍號碼<b>${esc(r.member_no)}</b></div>
@@ -583,6 +597,12 @@ function renderResult(){
         <button class="btn btn-clay" id="rpBtn">登記並列印</button>
       </div>
       <div class="muted" style="margin-top:6px">登記後會註記「待更新地址」，請引導社員至櫃檯辦理社籍地址變更。</div>
+    </details>
+    <details class="rpform"><summary>＋ 新增註記（例：同名同姓待確認）</summary>
+      <div class="row2" style="margin-top:12px;grid-template-columns:1fr auto">
+        <label class="field"><span>註記內容（所有分社查此號碼都會看到）</span><input type="text" id="noteText"></label>
+        <button class="btn btn-clay" id="noteBtn">新增註記</button>
+      </div>
     </details></div>`;
   box.innerHTML = h;
 
@@ -594,6 +614,14 @@ function renderResult(){
   }
   if ($('undoBtn')) $('undoBtn').onclick = doUndo;
   if ($('rpBtn')) $('rpBtn').onclick = doReprint;
+  if ($('noteBtn')) $('noteBtn').onclick = async () => {
+    const t = $('noteText').value.trim(); if (!t) { toast('請填註記內容', true); return; }
+    try { await rpc('elder_note_add', { p_no: CUR.member_no, p_note: t }); toast('已新增註記'); await doLookup(); } catch(e){ toast(e.message, true); }
+  };
+  box.querySelectorAll('[data-noteok]').forEach(b => b.onclick = async () => {
+    if (!confirm('確定這個註記已處理完、要移除？')) return;
+    try { await rpc('elder_note_resolve', { p_id: +b.dataset.noteok }); toast('已移除註記'); await doLookup(); } catch(e){ toast(e.message, true); }
+  });
   box.querySelectorAll('[data-addr]').forEach(b => b.onclick = () => doAddr(+b.dataset.addr));
   bindReprintEdit(box, r.reprints, doLookup);
   box.querySelectorAll('[data-rpprint]').forEach(b => b.onclick = () => printNotice(r.member_no, r.amount));
@@ -631,6 +659,7 @@ function bindReprintEdit(root, list, after){
 }
 async function doClaim(){
   if (CLAIMING) return;
+  if (CUR && (CUR.notes||[]).length && !confirm('此號碼有「待確認註記」，請確認已核對身分證、確定是本人號碼後再銷帳。\n\n確定要銷帳？')) return;
   const r = CUR, btn = $('claimBtn'); btn.disabled = true; CLAIMING = true;
   try { await doClaimInner(r, btn); } finally { CLAIMING = false; }
 }
@@ -881,6 +910,15 @@ function renderClaims(){
   $('clTable').querySelectorAll('[data-undo]').forEach(b => b.onclick = async () => {
     if (!confirm(`管理員撤銷 ${b.dataset.undo} 的銷帳？`)) return;
     try { await rpc('elder_undo', { p_no: b.dataset.undo }); toast('已撤銷'); loadAdmin(); } catch(e){ toast(e.message, true); }
+  });
+  const notes = ADMIN_DATA.notes || [];
+  $('noteTable').innerHTML = `<thead><tr><th>時間</th><th>社籍號碼</th><th>註記</th><th>建立</th><th>狀態</th></tr></thead><tbody>`
+    + (notes.length ? notes.map(n => `<tr><td>${tw(n.created_at)}</td><td>${esc(n.member_no)}</td><td>${esc(n.note)}</td><td>${esc(n.branch_name)}</td>
+      <td>${n.resolved ? `已處理（${esc(n.resolved_branch||'')} ${tw(n.resolved_at)}）` : `<button class="btn btn-soft" style="font-size:15px;padding:4px 10px" data-noteok2="${n.id}">標記已處理</button>`}</td></tr>`).join('')
+      : `<tr><td colspan="5" class="muted">沒有註記</td></tr>`) + `</tbody>`;
+  $('noteTable').querySelectorAll('[data-noteok2]').forEach(b => b.onclick = async () => {
+    if (!confirm('確定標記為已處理？')) return;
+    try { await rpc('elder_note_resolve', { p_id: +b.dataset.noteok2 }); toast('已處理'); loadAdmin(); } catch(e){ toast(e.message, true); }
   });
   const log = ADMIN_DATA.log;
   $('logTable').innerHTML = `<thead><tr><th>時間</th><th>動作</th><th>社籍號碼</th><th class="n">金額</th><th>原銷帳分社</th></tr></thead><tbody>`
