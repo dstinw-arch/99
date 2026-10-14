@@ -238,6 +238,7 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
 
     <!-- 管理員：總覽 -->
     <div id="tab-overview" class="hidden">
+      <div id="ovAlerts"></div>
       <div class="card">
         <h2>發放總覽 <span class="muted" style="font-size:16px;font-weight:400" id="ovTime"></span></h2>
         <div class="kpis" id="ovKpis"></div>
@@ -573,6 +574,9 @@ async function doLookup(){
 }
 function renderResult(){
   const r = CUR, box = $('qResult');
+  if (r.blocked) {
+    box.innerHTML = `<div class="alert same">⛔ ${esc(r.error)}</div>`; CUR = null; toast(r.error, true); return;
+  }
   if (!r.found) {
     box.innerHTML = `<div class="mbox none"><div class="mno">社籍號碼<b>${esc(r.member_no)}</b></div>
       <div class="state no" style="margin-left:auto">查無此社籍號碼<br><span class="muted" style="font-size:17px;font-weight:400">不在本次敬老金名單內</span></div></div>`;
@@ -932,6 +936,10 @@ async function loadAdmin(){
   renderOverview(); renderClaims(); renderRecon();
 }
 function renderOverview(){
+  const al = ADMIN_DATA.alerts || [];
+  $('ovAlerts').innerHTML = al.length ? `<div class="alert same" style="margin-top:16px">⛔ 異常查詢警示（近 24 小時）：`
+    + al.map(a => `${esc(a.branch_code)} ${esc((BRANCHES.find(b=>b[0]===a.branch_code)||[,'管理員'])[1])} 被擋 ${a.times} 次（最後 ${tw(a.last_at)}）`).join('；')
+    + `<div style="font-weight:500;margin-top:6px">短時間大量查詢可能是帳密外流。若不是該分社正常操作，請到「帳號管理」重設密碼或停用。</div></div>` : '';
   const T = ADMIN_DATA.totals;
   let cnt=0, cl=0, amt=0, amtCl=0;
   const cards = T.map(t => { cnt+=t.cnt; cl+=t.claimed; amt+=t.cnt*t.amount; amtCl+=t.claimed*t.amount;
