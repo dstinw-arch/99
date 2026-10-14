@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>重陽敬老金銷帳</title>
+<title>敬老金銷帳系統</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -177,9 +177,9 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
 <!-- 登入 -->
 <section id="loginView" class="hidden">
   <div class="login card">
-    <div class="logo">淡</div>
-    <h1>重陽敬老金銷帳</h1>
-    <p class="sub muted">115 年度・淡水信用合作社</p>
+    <div class="logo">敬</div>
+    <h1>敬老金銷帳系統</h1>
+    <p class="sub muted">115 年度</p>
     <div class="field"><span>單位</span>
       <select id="lgBranch"></select>
     </div>
@@ -194,7 +194,7 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
 <!-- 主畫面 -->
 <section id="mainView" class="hidden">
   <header><div class="wrap">
-    <h1>115 年度社員重陽敬老金・銷帳</h1>
+    <h1>敬老金銷帳系統</h1>
     <div class="who"><span class="badge" id="whoBadge"></span><button class="btn-ghost" id="logoutBtn">登出</button></div>
   </div></header>
 
@@ -253,6 +253,16 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
       </div>
     </div>
 
+    <!-- 管理員：帳號管理 -->
+    <div id="tab-acct" class="hidden">
+      <div class="card">
+        <h2>帳號管理</h2>
+        <div class="muted" style="margin-bottom:12px">重設密碼或停用後，該帳號在所有電腦、手機上都會被強制登出。新密碼只會顯示這一次，請自行記下再私下發給分社。</div>
+        <div class="tablebox" style="max-height:none"><table id="acctTable"></table></div>
+        <div id="acctMsg"></div>
+      </div>
+    </div>
+
     <!-- 管理員：每日對帳 -->
     <div id="tab-recon" class="hidden">
       <div class="card">
@@ -305,7 +315,7 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
       </div>
     </div>
   </div>
-  <footer>淡水信用合作社・重陽敬老金銷帳系統</footer>
+  <footer>敬老金銷帳系統</footer>
 </section>
 
 <div id="printArea"></div>
@@ -315,7 +325,19 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
 <script>
 const SUPABASE_URL = 'https://euzcnkxxqwvkzutopwau.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_iW5bLz3gFFVvCP6MLTRIww_YZTOkNGb';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true }   // 關掉分頁／瀏覽器就要重新登入
+});
+try { Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k)); } catch(e){}  // 清掉舊版留在電腦上的登入
+const IDLE_MS = 15 * 60 * 1000;
+let lastAct = Date.now();
+['click','keydown','touchstart','mousemove','scroll'].forEach(ev => window.addEventListener(ev, () => { lastAct = Date.now(); }, { passive: true }));
+setInterval(async () => {
+  if (ME && Date.now() - lastAct > IDLE_MS) {
+    await sb.auth.signOut(); $('qResult').innerHTML = ''; showLogin();
+    $('lgErr').textContent = '閒置超過 15 分鐘，已自動登出，請重新登入';
+  }
+}, 30000);
 
 const BRANCHES = [
   ['0016','營業部'],['0025','水碓'],['0034','竹圍'],['0043','英專'],['0052','義山'],['0061','三芝'],
@@ -387,7 +409,7 @@ async function enter(){
   $('mainView').classList.remove('hidden');
   $('whoBadge').textContent = ME.is_admin ? '管理員' : `${ME.branch_code} ${ME.branch_name}`;
   const tabs = ME.is_admin
-    ? [['overview','發放總覽'],['recon','每日對帳'],['claims','銷帳明細'],['reprint','補發／地址'],['lookup','查詢']]
+    ? [['overview','發放總覽'],['recon','每日對帳'],['claims','銷帳明細'],['reprint','補發／地址'],['lookup','查詢'],['acct','帳號管理']]
     : [['lookup','查詢銷帳'],['day','本社日報'],['reprint','補發／地址']];
   $('tabs').innerHTML = tabs.map(([k,n]) => `<button data-tab="${k}">${n}</button>`).join('');
   $('tabs').querySelectorAll('button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
@@ -401,12 +423,13 @@ function showLogin(){
 $('logoutBtn').onclick = async () => { await sb.auth.signOut(); $('qResult').innerHTML=''; showLogin(); };
 
 function showTab(k){
-  ['lookup','day','overview','recon','claims','reprint'].forEach(t => $('tab-'+t).classList.toggle('hidden', t!==k));
+  ['lookup','day','overview','recon','claims','reprint','acct'].forEach(t => $('tab-'+t).classList.toggle('hidden', t!==k));
   $('tabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab===k));
   if (k==='lookup') { updateBackfillBanner(); setTimeout(()=>$('qNo').focus(), 50); }
   if (k==='day') { loadDay(); loadSummary(); }
   if (k==='overview' || k==='claims' || k==='recon') loadAdmin();
   if (k==='reprint') loadReprints();
+  if (k==='acct') loadAccounts();
 }
 
 /* ---------- 補登時段（與資料庫 elder_backfill 設定一致） ---------- */
@@ -736,7 +759,7 @@ $('dayPrint').onclick = () => {
   const key = $('dayDate').value, agg = {500:0,1000:0,2000:0};
   DAY.forEach(x => agg[x.amount]++);
   const total = DAY.reduce((s,x)=>s+x.amount,0);
-  $('printArea').innerHTML = `<h1>淡水信用合作社　115 年度社員重陽敬老金銷帳日報</h1>
+  $('printArea').innerHTML = `<h1>115 年度敬老金銷帳日報</h1>
     <div class="meta">單位：${esc(ME.branch_code)} ${esc(ME.branch_name)}　　日期：${rocDate(key)}　　列印：${tw(Date.now())}</div>
     <table><thead><tr><th>金額</th><th class="n">人數</th><th class="n">小計</th></tr></thead><tbody>
     ${[500,1000,2000].map(a=>`<tr><td>${money(a)} 元</td><td class="n">${agg[a]}</td><td class="n">${money(agg[a]*a)}</td></tr>`).join('')}
@@ -783,7 +806,7 @@ async function loadSummary(){
 }
 $('sumPrint').onclick = async () => {
   const rows = await loadSummary();
-  $('printArea').innerHTML = `<h1>淡水信用合作社　115 年度社員重陽敬老金・每日對帳彙總</h1>
+  $('printArea').innerHTML = `<h1>115 年度敬老金・每日對帳彙總</h1>
     <div class="meta">單位：${esc(ME.branch_code)} ${esc(ME.branch_name)}　　列印：${tw(Date.now())}</div>
     <table class="recon">${reconHead('日期')}<tbody>${rows.map(r=>reconRow(r)).join('')}${reconRow(addUp(rows,'期間合計'),'grand')}</tbody></table>
     <div class="sig"><span>經辦：</span><span>主管：</span></div>`;
@@ -868,10 +891,38 @@ $('rcCsv').onclick = () => {
   csvDownload(`敬老金每日對帳_${todayKey()}.csv`, rows);
 };
 $('rcPrint').onclick = () => {
-  $('printArea').innerHTML = `<h1>淡水信用合作社　115 年度社員重陽敬老金・每日對帳</h1>
+  $('printArea').innerHTML = `<h1>115 年度敬老金・每日對帳</h1>
     <div class="meta">列印：${tw(Date.now())}</div>` + reconHtml();
   window.print();
 };
+
+/* ---------- 帳號管理 ---------- */
+function genPw(n=10){
+  const cs='abcdefghjkmnpqrstuvwxyz23456789', a=new Uint32Array(n); crypto.getRandomValues(a);
+  return [...a].map(x => cs[x % cs.length]).join('');
+}
+async function loadAccounts(){
+  let list; try { list = await rpc('elder_admin_accounts'); } catch(e){ toast(e.message, true); return; }
+  $('acctTable').innerHTML = `<thead><tr><th>帳號</th><th>狀態</th><th>最後登入</th><th></th></tr></thead><tbody>`
+    + list.map(a => `<tr><td>${a.is_admin?'管理員':esc(a.branch_code+' '+a.branch_name)}</td>
+      <td>${a.disabled?'<span class="tag pend">已停用</span>':'<span class="tag done">使用中</span>'}</td>
+      <td>${a.last_sign_in?tw(a.last_sign_in):'—'}</td>
+      <td style="white-space:nowrap"><button class="btn btn-soft" style="font-size:15px;padding:4px 10px" data-pw="${a.branch_code}">重設密碼</button>
+      ${a.is_admin?'':`<button class="btn ${a.disabled?'btn-main':'btn-clay'}" style="font-size:15px;padding:4px 10px" data-dis="${a.branch_code}" data-v="${a.disabled?0:1}">${a.disabled?'啟用':'停用'}</button>`}</td></tr>`).join('')
+    + `</tbody>`;
+  $('acctTable').querySelectorAll('[data-pw]').forEach(b => b.onclick = async () => {
+    const code = b.dataset.pw, pw = genPw(code==='9999'?12:10);
+    if (!confirm(`確定重設 ${code==='9999'?'管理員':code} 的密碼？\n舊密碼會立即失效，該帳號所有裝置都會被登出。`)) return;
+    try { await rpc('elder_admin_set_password', { p_branch: code, p_password: pw });
+      $('acctMsg').innerHTML = `<div class="alert" style="margin-top:14px;font-size:20px">新密碼（${code==='9999'?'管理員':esc(code)}）：<b style="letter-spacing:.1em;font-family:monospace">${pw}</b>　<span style="font-weight:500;font-size:16px">只顯示這一次，請記下</span></div>`;
+      loadAccounts(); } catch(e){ toast(e.message, true); }
+  });
+  $('acctTable').querySelectorAll('[data-dis]').forEach(b => b.onclick = async () => {
+    const on = b.dataset.v === '1';
+    if (!confirm(`確定${on?'停用':'啟用'} ${b.dataset.dis} 的帳號？`)) return;
+    try { await rpc('elder_admin_set_disabled', { p_branch: b.dataset.dis, p_disabled: on }); toast(on?'已停用':'已啟用'); loadAccounts(); } catch(e){ toast(e.message, true); }
+  });
+}
 
 /* ---------- 管理員 ---------- */
 async function loadAdmin(){
