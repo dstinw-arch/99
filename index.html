@@ -546,6 +546,14 @@ function printNotice(no, amount){
 /* ---------- 查詢 / 銷帳 ---------- */
 $('qBtn').onclick = doLookup;
 $('qNo').onkeydown = e => {
+  // Tab：在「本人領取／代領」之間切換（游標留在號碼欄，接著按 Enter 即可銷帳）
+  if (e.key === 'Tab' && $('claimBtn') && document.querySelector('input[name=who]')) {
+    e.preventDefault();
+    const cur = document.querySelector('input[name=who]:checked').value;
+    document.querySelector(`input[name=who][value=${cur==='self'?'proxy':'self'}]`).checked = true;
+    toast(cur==='self' ? '已切換為：代領' : '已切換為：本人領取');
+    return;
+  }
   if (e.key !== 'Enter') return;
   e.preventDefault();
   const v = $('qNo').value.trim();
@@ -610,7 +618,7 @@ function renderResult(){
       ${needId ? `<label class="chk"><input type="checkbox" id="ck1">已核對身分證字號與社籍資料一致${same.length?'，確認是 '+esc(r.member_no)+' 本人':''}</label>` : ''}
       ${needAddr ? `<label class="chk"><input type="checkbox" id="ck2">已核對「戶籍地址」與社籍資料一致</label>` : ''}
       <button class="btn btn-main bigbtn" id="claimBtn">確認銷帳 ${money(r.amount)} 元</button>
-      <div class="muted" style="text-align:center;margin-top:6px">${IS_TOUCH ? (needId?'勾選核對後點下方按鈕銷帳':'點下方按鈕即可銷帳') : (needId?'勾選核對後按 Enter 即可銷帳':'在號碼欄再按一次 Enter 即可銷帳')}</div></div>`;
+      <div class="muted" style="text-align:center;margin-top:6px">${IS_TOUCH ? (needId?'勾選核對後點下方按鈕銷帳':'點下方按鈕即可銷帳') : (needId?'勾選核對後按 Enter 即可銷帳':'再按 Enter 銷帳｜按 Tab 切換本人／代領')}</div></div>`;
   }
   if (r.claimed && r.claim.can_undo) {
     h += `<div class="actions"><button class="btn btn-soft" id="undoBtn">撤銷這筆銷帳</button>
