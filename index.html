@@ -179,7 +179,7 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
   <div class="login card">
     <div class="logo">敬</div>
     <h1>敬老金銷帳系統</h1>
-    <p class="sub muted">115 年度</p>
+    <p class="sub muted">115 年度・v15</p>
     <div class="field"><span>單位</span>
       <select id="lgBranch"></select>
     </div>
@@ -316,7 +316,7 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
       </div>
     </div>
   </div>
-  <footer>敬老金銷帳系統</footer>
+  <footer>敬老金銷帳系統・v15</footer>
 </section>
 
 <div id="printArea"></div>
@@ -326,6 +326,7 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
 <script>
 const SUPABASE_URL = 'https://euzcnkxxqwvkzutopwau.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_iW5bLz3gFFVvCP6MLTRIww_YZTOkNGb';
+const APP_VER = '15';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true }   // 關掉分頁／瀏覽器就要重新登入
 });
@@ -577,7 +578,7 @@ async function doLookup(){
   const raw = $('qNo').value.trim();
   if (!raw.replace(/\D/g,'')) { toast('請輸入社籍號碼', true); return; }
   if (IS_TOUCH) $('qNo').blur();
-  try { CUR = await rpc('elder_lookup', { p_no: raw }); renderResult(); }
+  try { CUR = await rpc('elder_lookup', { p_no: raw, p_ver: APP_VER }); renderResult(); }
   catch(e){ toast(e.message, true); }
 }
 function renderResult(){
@@ -714,7 +715,7 @@ async function doClaim(){
 async function doClaimInner(r, btn){
   const proxy = document.querySelector('input[name=who]:checked').value === 'proxy';
   try {
-    await rpc('elder_claim', { p_no: r.member_no, p_by_proxy: proxy,
+    await rpc('elder_claim', { p_ver: APP_VER, p_no: r.member_no, p_by_proxy: proxy,
       p_id_checked: $('ck1') ? $('ck1').checked : false,
       p_addr_checked: $('ck2') ? $('ck2').checked : false });
     const bf = backfillNow();
