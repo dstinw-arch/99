@@ -139,6 +139,10 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
   body{background:#fff;font-size:15px}
   header,nav,.card,footer,.toast,#app > *:not(#printArea){display:none!important}
   #printArea{display:block!important}
+  th{position:static!important}                 /* iPhone Safari 列印時，固定標題列會蓋住第一筆以下的資料 */
+  thead{display:table-header-group}
+  tr{page-break-inside:avoid;break-inside:avoid}
+  .tablebox{overflow:visible!important;max-height:none!important}
   #printArea h1{font-size:22px;text-align:center;margin:0 0 4px}
   #printArea .meta{text-align:center;margin-bottom:12px}
   #printArea table{font-size:14px}
@@ -179,7 +183,7 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
   <div class="login card">
     <div class="logo">敬</div>
     <h1>敬老金銷帳系統</h1>
-    <p class="sub muted">115 年度・v16</p>
+    <p class="sub muted">115 年度・v17</p>
     <div class="field"><span>單位</span>
       <select id="lgBranch"></select>
     </div>
@@ -316,7 +320,7 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
       </div>
     </div>
   </div>
-  <footer>敬老金銷帳系統・v16</footer>
+  <footer>敬老金銷帳系統・v17</footer>
 </section>
 
 <div id="printArea"></div>
@@ -326,7 +330,7 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
 <script>
 const SUPABASE_URL = 'https://euzcnkxxqwvkzutopwau.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_iW5bLz3gFFVvCP6MLTRIww_YZTOkNGb';
-const APP_VER = '16';
+const APP_VER = '17';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true }   // 關掉分頁／瀏覽器就要重新登入
 });
