@@ -183,7 +183,7 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
   <div class="login card">
     <div class="logo">敬</div>
     <h1>敬老金銷帳系統</h1>
-    <p class="sub muted">115 年度・v18</p>
+    <p class="sub muted">115 年度・v19</p>
     <div class="field"><span>單位</span>
       <select id="lgBranch"></select>
     </div>
@@ -320,7 +320,7 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
       </div>
     </div>
   </div>
-  <footer>敬老金銷帳系統・v18</footer>
+  <footer>敬老金銷帳系統・v19</footer>
 </section>
 
 <div id="printArea"></div>
@@ -330,7 +330,7 @@ footer{text-align:center;color:var(--ink2);font-size:15px;padding:30px 0}
 <script>
 const SUPABASE_URL = 'https://euzcnkxxqwvkzutopwau.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_iW5bLz3gFFVvCP6MLTRIww_YZTOkNGb';
-const APP_VER = '18';
+const APP_VER = '19';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true }   // 關掉分頁／瀏覽器就要重新登入
 });
@@ -423,7 +423,7 @@ async function enter(){
   if (ME.is_admin) { clearInterval(refreshTimer); refreshTimer = setInterval(loadAdmin, 60000); }
 }
 function showLogin(){
-  ME = null; clearInterval(refreshTimer);
+  ME = null; SUM_ROWS = null; clearInterval(refreshTimer);
   $('mainView').classList.add('hidden'); $('loginView').classList.remove('hidden');
 }
 $('logoutBtn').onclick = async () => { await sb.auth.signOut(); $('qResult').innerHTML=''; showLogin(); };
@@ -817,9 +817,9 @@ const addUp = (rows, label) => rows.reduce((a,r)=>({label, n500:a.n500+r.n500, n
 const allDays = extra => [...new Set([...PERIOD, ...extra])].sort();
 
 // 分社：期間彙總
-let SUM = [];
+let SUM = [], SUM_ROWS = null;
 async function loadSummary(){
-  try { SUM = await rpc('elder_branch_summary'); } catch(e){ toast(e.message, true); return; }
+  try { SUM = await rpc('elder_branch_summary'); } catch(e){ toast(e.message, true); return SUM_ROWS; }
   const days = allDays(SUM.map(x=>x.day));
   const rows = days.map(d => { const g = a => (SUM.find(x=>x.day===d && x.amount===a)||{cnt:0}).cnt;
     return { key:d, label: shortDay(d), n500:g(500), n1000:g(1000), n2000:g(2000) }; });
@@ -828,10 +828,13 @@ async function loadSummary(){
     + reconRow(addUp(rows,'期間合計'), 'grand') + '</tbody>';
   $('sumTable').querySelectorAll('[data-day]').forEach(td => td.onclick = () => { $('dayDate').value = td.dataset.day; loadDay();
     $('dayTable').scrollIntoView({behavior:'smooth', block:'center'}); });
+  SUM_ROWS = rows;
   return rows;
 }
-$('sumPrint').onclick = async () => {
-  const rows = await loadSummary();
+// iPhone Safari 只允許「點按當下」叫出列印；不能先 await 抓資料，所以用切到本頁時已載入的資料直接印
+$('sumPrint').onclick = () => {
+  const rows = SUM_ROWS;
+  if (!rows) { toast('資料還在載入，請稍等一下再按', true); loadSummary(); return; }
   $('printArea').innerHTML = `<h1>115 年度敬老金・每日對帳彙總</h1>
     <div class="meta">單位：${esc(ME.branch_code)} ${esc(ME.branch_name)}　　列印：${tw(Date.now())}</div>
     <table class="recon">${reconHead('日期')}<tbody>${rows.map(r=>reconRow(r)).join('')}${reconRow(addUp(rows,'期間合計'),'grand')}</tbody></table>
